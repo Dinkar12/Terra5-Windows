@@ -954,7 +954,10 @@ struct DataLayerToggleRow: View {
 
             Toggle("", isOn: Binding(
                 get: { isActive },
-                set: { _ in appState.toggleLayer(layer) }
+                set: { _ in
+                    NSLog("[TERRA5] Toggle clicked for: %@", layer.rawValue)
+                    appState.toggleLayer(layer)
+                }
             ))
             .toggleStyle(TacticalToggleStyle())
         }

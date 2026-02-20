@@ -34,7 +34,6 @@ struct MapKitGlobeView: NSViewRepresentable {
         mapView.register(FlightAnnotationView.self, forAnnotationViewWithReuseIdentifier: FlightAnnotationView.identifier)
         mapView.register(SatelliteAnnotationView.self, forAnnotationViewWithReuseIdentifier: SatelliteAnnotationView.identifier)
         mapView.register(EarthquakeAnnotationView.self, forAnnotationViewWithReuseIdentifier: EarthquakeAnnotationView.identifier)
-        mapView.register(WeatherRadarAnnotationView.self, forAnnotationViewWithReuseIdentifier: WeatherRadarAnnotationView.identifier)
         mapView.register(CCTVAnnotationView.self, forAnnotationViewWithReuseIdentifier: CCTVAnnotationView.identifier)
 
         // Initial camera - Washington DC
@@ -60,6 +59,11 @@ struct MapKitGlobeView: NSViewRepresentable {
     }
 
     func updateNSView(_ mapView: MKMapView, context: Context) {
+        // Debug: check if weather/cctv data exists
+        if appState.weatherRadars.count > 0 || appState.cctvCameras.count > 0 {
+            print("[DEBUG] updateNSView: weather=\(appState.weatherRadars.count), cctv=\(appState.cctvCameras.count), weatherActive=\(appState.isLayerActive(.weather)), cctvActive=\(appState.isLayerActive(.cctv))")
+        }
+
         // Handle fly-to requests
         if let landmark = appState.selectedLandmark {
             let camera = MKMapCamera(
@@ -80,7 +84,7 @@ struct MapKitGlobeView: NSViewRepresentable {
             flights: appState.isLayerActive(.flights) ? appState.flights : [],
             satellites: appState.isLayerActive(.satellites) ? appState.satellites : [],
             earthquakes: appState.isLayerActive(.earthquakes) ? appState.earthquakes : [],
-            weatherRadars: appState.isLayerActive(.weather) ? appState.weatherRadars : [],
+            showWeather: appState.isLayerActive(.weather),
             cctvCameras: appState.isLayerActive(.cctv) ? appState.cctvCameras : []
         )
     }
@@ -98,8 +102,12 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
     private var currentFlightIds: Set<String> = []
     private var currentSatelliteIds: Set<String> = []
     private var currentEarthquakeIds: Set<String> = []
-    private var currentWeatherRadarIds: Set<String> = []
     private var currentCCTVIds: Set<String> = []
+
+    // Weather tile overlays
+    private var rainOverlay: RainRadarOverlay?
+    private var cloudOverlay: CloudCoverOverlay?
+    private var weatherOverlayActive = false
 
     init(appState: AppState) {
         self.appState = appState
@@ -122,10 +130,13 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
         flights: [Flight],
         satellites: [Satellite],
         earthquakes: [Earthquake],
-        weatherRadars: [WeatherRadar],
+        showWeather: Bool,
         cctvCameras: [CCTVCamera]
     ) {
-        guard let mapView = mapView else { return }
+        guard let mapView = mapView else {
+            NSLog("[TERRA5] MapKit: mapView is nil!")
+            return
+        }
 
         // Update flights
         let newFlightIds = Set(flights.map { $0.id })
@@ -163,21 +174,13 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
             currentEarthquakeIds = newEarthquakeIds
         }
 
-        // Update weather radars
-        let newWeatherRadarIds = Set(weatherRadars.map { $0.id })
-        if newWeatherRadarIds != currentWeatherRadarIds {
-            let oldWeatherAnnotations = mapView.annotations.compactMap { $0 as? WeatherRadarAnnotation }
-            mapView.removeAnnotations(oldWeatherAnnotations)
-
-            let weatherAnnotations = weatherRadars.map { WeatherRadarAnnotation(radar: $0) }
-            mapView.addAnnotations(weatherAnnotations)
-
-            currentWeatherRadarIds = newWeatherRadarIds
-        }
+        // Update weather tile overlays
+        updateWeatherOverlay(show: showWeather, on: mapView)
 
         // Update CCTV cameras
         let newCCTVIds = Set(cctvCameras.map { $0.id })
         if newCCTVIds != currentCCTVIds {
+            NSLog("[TERRA5] MapKit: Adding %d CCTV annotations", cctvCameras.count)
             let oldCCTVAnnotations = mapView.annotations.compactMap { $0 as? CCTVAnnotation }
             mapView.removeAnnotations(oldCCTVAnnotations)
 
@@ -185,6 +188,50 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
             mapView.addAnnotations(cctvAnnotations)
 
             currentCCTVIds = newCCTVIds
+        }
+    }
+
+    private func updateWeatherOverlay(show: Bool, on mapView: MKMapView) {
+        if show && !weatherOverlayActive {
+            // Add weather overlays
+            NSLog("[TERRA5] MapKit: Adding weather tile overlays (rain + clouds)")
+
+            // Fetch latest timestamps and add overlays
+            Task {
+                let radarTimestamp = await WeatherRadarService.shared.getLatestRadarTimestamp()
+                let satelliteTimestamp = await WeatherRadarService.shared.getLatestSatelliteTimestamp()
+
+                await MainActor.run {
+                    // Remove old overlays first
+                    if let old = rainOverlay { mapView.removeOverlay(old) }
+                    if let old = cloudOverlay { mapView.removeOverlay(old) }
+
+                    // Add rain radar overlay
+                    let rain = RainRadarOverlay(timestamp: radarTimestamp, colorScheme: 6)
+                    mapView.addOverlay(rain, level: .aboveLabels)
+                    self.rainOverlay = rain
+
+                    // Add cloud/satellite overlay (below rain)
+                    let clouds = CloudCoverOverlay(timestamp: satelliteTimestamp)
+                    mapView.addOverlay(clouds, level: .aboveRoads)
+                    self.cloudOverlay = clouds
+
+                    self.weatherOverlayActive = true
+                    NSLog("[TERRA5] MapKit: Weather overlays added (radar: %d, satellite: %d)", radarTimestamp, satelliteTimestamp)
+                }
+            }
+        } else if !show && weatherOverlayActive {
+            // Remove weather overlays
+            NSLog("[TERRA5] MapKit: Removing weather tile overlays")
+            if let rain = rainOverlay {
+                mapView.removeOverlay(rain)
+                rainOverlay = nil
+            }
+            if let clouds = cloudOverlay {
+                mapView.removeOverlay(clouds)
+                cloudOverlay = nil
+            }
+            weatherOverlayActive = false
         }
     }
 
@@ -220,12 +267,6 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
             return view
         }
 
-        if let weatherAnnotation = annotation as? WeatherRadarAnnotation {
-            let view = mapView.dequeueReusableAnnotationView(withIdentifier: WeatherRadarAnnotationView.identifier, for: annotation) as! WeatherRadarAnnotationView
-            view.configure(with: weatherAnnotation.radar)
-            return view
-        }
-
         if let cctvAnnotation = annotation as? CCTVAnnotation {
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: CCTVAnnotationView.identifier, for: annotation) as! CCTVAnnotationView
             view.configure(with: cctvAnnotation.camera)
@@ -233,6 +274,16 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
         }
 
         return nil
+    }
+
+    // MARK: - Overlay Rendering
+    func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+        if let tileOverlay = overlay as? MKTileOverlay {
+            let renderer = MKTileOverlayRenderer(tileOverlay: tileOverlay)
+            renderer.alpha = 0.7  // Semi-transparent
+            return renderer
+        }
+        return MKOverlayRenderer(overlay: overlay)
     }
 }
 
@@ -542,101 +593,6 @@ class EarthquakeAnnotationView: MKAnnotationView {
 
         earthquakeImage.unlockFocus()
         self.image = earthquakeImage
-    }
-}
-
-// MARK: - Weather Radar Annotation
-class WeatherRadarAnnotation: NSObject, MKAnnotation {
-    let radar: WeatherRadar
-
-    init(radar: WeatherRadar) {
-        self.radar = radar
-        super.init()
-    }
-
-    var coordinate: CLLocationCoordinate2D {
-        radar.coordinate
-    }
-
-    var title: String? {
-        "\(radar.stationId) - \(radar.name)"
-    }
-
-    var subtitle: String? {
-        "\(radar.type.displayName) • \(radar.precipitationLevel.displayName)"
-    }
-}
-
-class WeatherRadarAnnotationView: MKAnnotationView {
-    static let identifier = "WeatherRadarAnnotation"
-
-    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
-        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
-        setupView()
-    }
-
-    required init?(coder aDecoder: NSCoder) {
-        super.init(coder: aDecoder)
-        setupView()
-    }
-
-    private func setupView() {
-        canShowCallout = true
-        frame = CGRect(x: 0, y: 0, width: 24, height: 24)
-    }
-
-    func configure(with radar: WeatherRadar) {
-        let size: CGFloat = 24
-        let precipColor = NSColor(Color(hex: radar.precipitationLevel.color))
-        let statusColor = NSColor(Color(hex: radar.status.color))
-
-        let radarImage = NSImage(size: NSSize(width: size, height: size))
-        radarImage.lockFocus()
-
-        let center = NSPoint(x: size / 2, y: size / 2)
-
-        // Draw radar sweep circles
-        for i in 1...3 {
-            let radius = CGFloat(i) * (size / 7)
-            let circleRect = NSRect(
-                x: center.x - radius,
-                y: center.y - radius,
-                width: radius * 2,
-                height: radius * 2
-            )
-            precipColor.withAlphaComponent(0.3 + Double(3 - i) * 0.15).setStroke()
-            let circlePath = NSBezierPath(ovalIn: circleRect)
-            circlePath.lineWidth = 1
-            circlePath.stroke()
-        }
-
-        // Draw radar sweep line
-        let sweepPath = NSBezierPath()
-        sweepPath.move(to: center)
-        sweepPath.line(to: NSPoint(x: center.x + size / 2 - 2, y: center.y + size / 4))
-        precipColor.setStroke()
-        sweepPath.lineWidth = 2
-        sweepPath.stroke()
-
-        // Draw center tower dot
-        let towerSize: CGFloat = 6
-        let towerRect = NSRect(
-            x: center.x - towerSize / 2,
-            y: center.y - towerSize / 2,
-            width: towerSize,
-            height: towerSize
-        )
-        statusColor.setFill()
-        NSBezierPath(ovalIn: towerRect).fill()
-
-        // Status indicator border
-        statusColor.setStroke()
-        let statusPath = NSBezierPath(ovalIn: towerRect)
-        statusPath.lineWidth = 1.5
-        statusPath.stroke()
-
-        radarImage.unlockFocus()
-        self.image = radarImage
     }
 }
 

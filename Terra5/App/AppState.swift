@@ -81,6 +81,7 @@ class AppState: ObservableObject {
     @Published var isLoadingEarthquakes: Bool = false
     @Published var isLoadingWeather: Bool = false
     @Published var isLoadingCCTV: Bool = false
+    @Published var isWeatherDataReady: Bool = false
 
     // MARK: - Error States
     @Published var flightsError: String?
@@ -166,10 +167,66 @@ class AppState: ObservableObject {
 
     // MARK: - Methods
     func toggleLayer(_ layer: DataLayerType) {
+        NSLog("[TERRA5] toggleLayer: %@, currently active: %d", layer.rawValue, activeLayers.contains(layer) ? 1 : 0)
         if activeLayers.contains(layer) {
             activeLayers.remove(layer)
+            // Clear data when layer is disabled
+            clearLayerData(layer)
+            NSLog("[TERRA5] Layer %@ disabled", layer.rawValue)
         } else {
             activeLayers.insert(layer)
+            NSLog("[TERRA5] Layer %@ enabled, fetching data...", layer.rawValue)
+            // Immediately fetch data when layer is enabled
+            fetchLayerData(layer)
+        }
+    }
+
+    private func clearLayerData(_ layer: DataLayerType) {
+        switch layer {
+        case .flights:
+            flights = []
+        case .satellites:
+            satellites = []
+        case .earthquakes:
+            earthquakes = []
+        case .weather:
+            weatherRadars = []
+            weatherAlerts = []
+        case .cctv:
+            cctvCameras = []
+        case .traffic:
+            break
+        }
+    }
+
+    private func fetchLayerData(_ layer: DataLayerType) {
+        NSLog("[TERRA5] fetchLayerData: %@, dataManager exists: %d", layer.rawValue, dataManager != nil ? 1 : 0)
+        guard let dataManager = dataManager else {
+            NSLog("[TERRA5] ERROR: DataManager not available for layer fetch!")
+            return
+        }
+
+        Task {
+            NSLog("[TERRA5] Starting fetch task for %@", layer.rawValue)
+            switch layer {
+            case .flights:
+                await dataManager.refreshFlights()
+            case .satellites:
+                await dataManager.refreshSatellites()
+            case .earthquakes:
+                await dataManager.refreshEarthquakes()
+            case .weather:
+                NSLog("[TERRA5] Calling dataManager.refreshWeather()")
+                await dataManager.refreshWeather()
+                NSLog("[TERRA5] Weather fetch complete, count: %d", self.weatherRadars.count)
+            case .cctv:
+                NSLog("[TERRA5] Calling dataManager.refreshCCTV()")
+                await dataManager.refreshCCTV()
+                NSLog("[TERRA5] CCTV fetch complete, count: %d", self.cctvCameras.count)
+            case .traffic:
+                NSLog("[TERRA5] Traffic layer not implemented")
+            }
+            NSLog("[TERRA5] Task completed for %@", layer.rawValue)
         }
     }
 

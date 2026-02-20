@@ -153,48 +153,59 @@ class DataManager {
         appState.isLoadingEarthquakes = false
     }
 
-    private func fetchWeather() async {
-        guard let appState = appState,
-              appState.isLayerActive(.weather) else { return }
+    private func fetchWeather(force: Bool = false) async {
+        guard let appState = appState else {
+            NSLog("[TERRA5] fetchWeather: appState is nil!")
+            return
+        }
+        guard force || appState.isLayerActive(.weather) else {
+            NSLog("[TERRA5] fetchWeather: layer not active and not forced, skipping")
+            return
+        }
 
+        NSLog("[TERRA5] fetchWeather: starting fetch (force=%d)...", force ? 1 : 0)
         appState.isLoadingWeather = true
         appState.weatherError = nil
 
         do {
-            // Fetch radar stations
-            let radars = try await NOAAService.shared.fetchRadarStations()
-            appState.weatherRadars = radars
-
-            // Fetch weather alerts
-            let alerts = try await NOAAService.shared.fetchWeatherAlerts()
-            appState.weatherAlerts = alerts
+            // Fetch radar timestamps for tile overlays
+            let (radarFrames, satelliteFrames) = try await WeatherRadarService.shared.fetchTimestamps()
+            NSLog("[TERRA5] fetchWeather: got %d radar frames, %d satellite frames", radarFrames.count, satelliteFrames.count)
 
             appState.weatherLastUpdate = Date()
-            print("Fetched \(radars.count) radar stations, \(alerts.count) weather alerts")
+            // Mark weather as ready (tile overlays will be shown in MapKitGlobeView)
+            appState.isWeatherDataReady = true
         } catch {
             appState.weatherError = error.localizedDescription
-            print("Weather fetch error: \(error)")
+            NSLog("[TERRA5] fetchWeather ERROR: %@", error.localizedDescription)
         }
 
         appState.isLoadingWeather = false
     }
 
-    private func fetchCCTV() async {
-        guard let appState = appState,
-              appState.isLayerActive(.cctv) else { return }
+    private func fetchCCTV(force: Bool = false) async {
+        guard let appState = appState else {
+            NSLog("[TERRA5] fetchCCTV: appState is nil!")
+            return
+        }
+        guard force || appState.isLayerActive(.cctv) else {
+            NSLog("[TERRA5] fetchCCTV: layer not active and not forced, skipping")
+            return
+        }
 
+        NSLog("[TERRA5] fetchCCTV: starting fetch (force=%d)...", force ? 1 : 0)
         appState.isLoadingCCTV = true
         appState.cctvError = nil
 
         // Load sample CCTV cameras (static data for demo)
         appState.cctvCameras = CCTVCamera.sampleCameras
         appState.cctvLastUpdate = Date()
-        print("Loaded \(appState.cctvCameras.count) CCTV cameras")
+        NSLog("[TERRA5] fetchCCTV: loaded %d cameras", appState.cctvCameras.count)
 
         appState.isLoadingCCTV = false
     }
 
-    // Manual refresh methods
+    // Manual refresh methods (force=true bypasses layer active check)
     func refreshFlights() async {
         await fetchFlights()
     }
@@ -208,11 +219,15 @@ class DataManager {
     }
 
     func refreshWeather() async {
-        await fetchWeather()
+        NSLog("[TERRA5] DataManager.refreshWeather called")
+        await fetchWeather(force: true)
+        NSLog("[TERRA5] DataManager.refreshWeather completed, radars: %d", appState?.weatherRadars.count ?? -1)
     }
 
     func refreshCCTV() async {
-        await fetchCCTV()
+        NSLog("[TERRA5] DataManager.refreshCCTV called")
+        await fetchCCTV(force: true)
+        NSLog("[TERRA5] DataManager.refreshCCTV completed, cameras: %d", appState?.cctvCameras.count ?? -1)
     }
 
     func refreshAll() async {
