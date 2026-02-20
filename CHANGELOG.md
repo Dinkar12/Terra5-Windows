@@ -2,6 +2,55 @@
 
 All notable changes to Terra5 (WORLDVIEW) will be documented in this file.
 
+## [1.1.0] - 2026-02-20
+
+### Added
+
+#### Weather Radar Layer
+- `NOAAService` - NOAA weather radar and alerts API integration
+- `WeatherRadar` model with 26 NEXRAD station locations across US
+- Precipitation level indicators (None, Light, Moderate, Heavy, Extreme)
+- Radar sweep animation icons with status colors
+- Custom radar station annotation views
+- 5-minute auto-refresh
+
+#### CCTV Camera Layer
+- `CCTVCamera` model with 25 sample cameras across major cities
+- Camera types: Traffic, Security, Public Space, Infrastructure, Port, Airport
+- Status indicators: Online, Offline, Maintenance, Recording
+- Custom camera annotation views with recording indicator
+- 1-minute auto-refresh
+
+#### PANOPTIC AI Detection
+- `PANOPTICService` - Simulated CoreML object detection
+- Detection categories: Vehicle, Aircraft, Vessel, Building, Person, Infrastructure
+- `DetectionOverlayView` with bounding boxes and corner brackets
+- Real-time detection stats (count, latency, density)
+- Scanning line animation overlay
+- Toggle button in sidebar with live stats
+
+#### Keyboard Shortcuts
+- `Cmd+1-5`: Toggle data layers (Flights, Satellites, Earthquakes, Weather, CCTV)
+- `Cmd+Shift+1-8`: Select visual modes
+- `Cmd+Option+1-8`: Fly to city presets
+- `Cmd+[`: Toggle sidebar
+- `Cmd+Shift+P`: Toggle PANOPTIC detection
+- `Cmd+R`: Refresh all data
+
+#### Settings Persistence
+- UserDefaults storage for app settings
+- Persisted: Visual mode, sidebar state, active layers, last city
+- Camera position restoration on app launch
+- `resetSettings()` method to restore defaults
+
+### Changed
+- `DataManager` now handles all 6 data layers
+- `MapKitGlobeView` supports weather and CCTV annotations
+- `DataLayerToggleRow` shows counts for all layer types
+- Menu bar with Data, View, and Locations menus
+
+---
+
 ## [1.0.0] - 2026-02-20
 
 ### Added
