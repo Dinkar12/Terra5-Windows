@@ -11,10 +11,6 @@ import MapKit
 struct MapKitGlobeView: NSViewRepresentable {
     @EnvironmentObject var appState: AppState
 
-    // Explicit parameters to force SwiftUI to detect changes
-    let selectedWeatherLayer: WeatherLayerType
-    let weatherActive: Bool
-
     func makeNSView(context: Context) -> MKMapView {
         let mapView = MKMapView()
 
@@ -84,13 +80,11 @@ struct MapKitGlobeView: NSViewRepresentable {
         }
 
         // Update annotations based on active layers and data
-        // Use explicit parameters for weather to ensure SwiftUI detects changes
+        // Weather is handled separately by WeatherImageOverlay
         context.coordinator.updateAnnotations(
             flights: appState.isLayerActive(.flights) ? appState.flights : [],
             satellites: appState.isLayerActive(.satellites) ? appState.satellites : [],
             earthquakes: appState.isLayerActive(.earthquakes) ? appState.earthquakes : [],
-            showWeather: weatherActive,
-            weatherLayerType: selectedWeatherLayer,
             cctvCameras: appState.isLayerActive(.cctv) ? appState.cctvCameras : []
         )
     }
@@ -110,11 +104,7 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
     private var currentEarthquakeIds: Set<String> = []
     private var currentCCTVIds: Set<String> = []
 
-    // Weather tile overlays
-    private var rainOverlay: RainRadarOverlay?
-    private var cloudOverlay: CloudCoverOverlay?
-    private var temperatureOverlay: TemperatureOverlay?
-    private var currentWeatherLayerType: WeatherLayerType?
+    // Weather is now handled by SwiftUI overlay (WeatherImageOverlay)
 
     init(appState: AppState) {
         self.appState = appState
@@ -137,8 +127,6 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
         flights: [Flight],
         satellites: [Satellite],
         earthquakes: [Earthquake],
-        showWeather: Bool,
-        weatherLayerType: WeatherLayerType,
         cctvCameras: [CCTVCamera]
     ) {
         guard let mapView = mapView else {
@@ -182,9 +170,6 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
             currentEarthquakeIds = newEarthquakeIds
         }
 
-        // Update weather tile overlays
-        updateWeatherOverlay(show: showWeather, layerType: weatherLayerType, on: mapView)
-
         // Update CCTV cameras
         let newCCTVIds = Set(cctvCameras.map { $0.id })
         if newCCTVIds != currentCCTVIds {
@@ -199,94 +184,8 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
         }
     }
 
-    private func updateWeatherOverlay(show: Bool, layerType: WeatherLayerType, on mapView: MKMapView) {
-        // If weather is disabled, remove all overlays
-        if !show {
-            removeAllWeatherOverlays(from: mapView)
-            currentWeatherLayerType = nil
-            // Switch back to 3D satellite flyover
-            if mapView.mapType != .satelliteFlyover {
-                mapView.mapType = .satelliteFlyover
-                NSLog("[TERRA5] MapKit: Switched back to satelliteFlyover mode")
-            }
-            return
-        }
-
-        // Switch to standard 2D map for weather overlays (3D and satellite modes may not support tile overlays well)
-        if mapView.mapType != .mutedStandard {
-            mapView.mapType = .mutedStandard
-            NSLog("[TERRA5] MapKit: Switched to mutedStandard mode for weather overlay")
-        }
-
-        // If layer type changed, update the overlay
-        if currentWeatherLayerType != layerType {
-            NSLog("[TERRA5] MapKit: Switching weather layer to %@", layerType.rawValue)
-
-            // Remove all existing weather overlays
-            removeAllWeatherOverlays(from: mapView)
-
-            // Add the selected overlay
-            Task {
-                NSLog("[TERRA5] MapKit: Fetching weather timestamps...")
-                let radarTimestamp = await WeatherRadarService.shared.getLatestRadarTimestamp()
-                let satelliteTimestamp = await WeatherRadarService.shared.getLatestSatelliteTimestamp()
-                NSLog("[TERRA5] MapKit: Got timestamps - radar: %d, satellite: %d", radarTimestamp, satelliteTimestamp)
-
-                // Check for valid timestamps
-                guard radarTimestamp > 0 else {
-                    NSLog("[TERRA5] MapKit: ERROR - Invalid radar timestamp, cannot add overlay")
-                    return
-                }
-
-                await MainActor.run {
-                    // Debug: Log overlay count before adding
-                    NSLog("[TERRA5] MapKit: Current overlay count: %d", mapView.overlays.count)
-
-                    switch layerType {
-                    case .rain:
-                        let rain = RainRadarOverlay(timestamp: radarTimestamp, colorScheme: 6)
-                        mapView.addOverlay(rain, level: .aboveRoads)
-                        self.rainOverlay = rain
-                        NSLog("[TERRA5] MapKit: Rain overlay added (timestamp: %d), total overlays: %d", radarTimestamp, mapView.overlays.count)
-
-                    case .clouds:
-                        let effectiveTimestamp = satelliteTimestamp > 0 ? satelliteTimestamp : radarTimestamp
-                        let clouds = CloudCoverOverlay(timestamp: effectiveTimestamp)
-                        mapView.addOverlay(clouds, level: .aboveRoads)
-                        self.cloudOverlay = clouds
-                        NSLog("[TERRA5] MapKit: Cloud overlay added (timestamp: %d), total overlays: %d", effectiveTimestamp, mapView.overlays.count)
-
-                    case .temperature:
-                        let temp = TemperatureOverlay(timestamp: radarTimestamp)
-                        mapView.addOverlay(temp, level: .aboveRoads)
-                        self.temperatureOverlay = temp
-                        NSLog("[TERRA5] MapKit: Temperature overlay added (timestamp: %d), total overlays: %d", radarTimestamp, mapView.overlays.count)
-                    }
-
-                    self.currentWeatherLayerType = layerType
-
-                    // Force map to refresh
-                    let center = mapView.centerCoordinate
-                    mapView.centerCoordinate = center
-                }
-            }
-        }
-    }
-
-    private func removeAllWeatherOverlays(from mapView: MKMapView) {
-        if let rain = rainOverlay {
-            mapView.removeOverlay(rain)
-            rainOverlay = nil
-        }
-        if let clouds = cloudOverlay {
-            mapView.removeOverlay(clouds)
-            cloudOverlay = nil
-        }
-        if let temp = temperatureOverlay {
-            mapView.removeOverlay(temp)
-            temperatureOverlay = nil
-        }
-    }
+    // Weather overlays are now handled by WeatherImageOverlay SwiftUI view
+    // This keeps the 3D globe intact without switching to 2D mode
 
     func flyTo(latitude: Double, longitude: Double, altitude: Double) {
         guard let mapView = mapView else { return }
@@ -329,17 +228,6 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
         return nil
     }
 
-    // MARK: - Overlay Rendering
-    func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-        NSLog("[TERRA5] MapKit: rendererFor overlay called, type: %@", String(describing: type(of: overlay)))
-        if let tileOverlay = overlay as? MKTileOverlay {
-            NSLog("[TERRA5] MapKit: Creating tile overlay renderer")
-            let renderer = MKTileOverlayRenderer(tileOverlay: tileOverlay)
-            renderer.alpha = 0.7  // Semi-transparent
-            return renderer
-        }
-        return MKOverlayRenderer(overlay: overlay)
-    }
 }
 
 // MARK: - Flight Annotation
@@ -750,7 +638,7 @@ class CCTVAnnotationView: MKAnnotationView {
 }
 
 #Preview {
-    MapKitGlobeView(selectedWeatherLayer: .rain, weatherActive: false)
+    MapKitGlobeView()
         .environmentObject(AppState())
         .frame(width: 800, height: 600)
 }
