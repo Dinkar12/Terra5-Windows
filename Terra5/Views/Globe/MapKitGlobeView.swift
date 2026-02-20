@@ -212,10 +212,10 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
             return
         }
 
-        // Switch to 2D satellite mode for weather overlays (3D doesn't support tile overlays well)
-        if mapView.mapType != .satellite {
-            mapView.mapType = .satellite
-            NSLog("[TERRA5] MapKit: Switched to 2D satellite mode for weather overlay")
+        // Switch to standard 2D map for weather overlays (3D and satellite modes may not support tile overlays well)
+        if mapView.mapType != .mutedStandard {
+            mapView.mapType = .mutedStandard
+            NSLog("[TERRA5] MapKit: Switched to mutedStandard mode for weather overlay")
         }
 
         // If layer type changed, update the overlay
@@ -239,28 +239,35 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
                 }
 
                 await MainActor.run {
+                    // Debug: Log overlay count before adding
+                    NSLog("[TERRA5] MapKit: Current overlay count: %d", mapView.overlays.count)
+
                     switch layerType {
                     case .rain:
                         let rain = RainRadarOverlay(timestamp: radarTimestamp, colorScheme: 6)
                         mapView.addOverlay(rain, level: .aboveRoads)
                         self.rainOverlay = rain
-                        NSLog("[TERRA5] MapKit: Rain overlay added (timestamp: %d)", radarTimestamp)
+                        NSLog("[TERRA5] MapKit: Rain overlay added (timestamp: %d), total overlays: %d", radarTimestamp, mapView.overlays.count)
 
                     case .clouds:
                         let effectiveTimestamp = satelliteTimestamp > 0 ? satelliteTimestamp : radarTimestamp
                         let clouds = CloudCoverOverlay(timestamp: effectiveTimestamp)
                         mapView.addOverlay(clouds, level: .aboveRoads)
                         self.cloudOverlay = clouds
-                        NSLog("[TERRA5] MapKit: Cloud overlay added (timestamp: %d)", effectiveTimestamp)
+                        NSLog("[TERRA5] MapKit: Cloud overlay added (timestamp: %d), total overlays: %d", effectiveTimestamp, mapView.overlays.count)
 
                     case .temperature:
                         let temp = TemperatureOverlay(timestamp: radarTimestamp)
                         mapView.addOverlay(temp, level: .aboveRoads)
                         self.temperatureOverlay = temp
-                        NSLog("[TERRA5] MapKit: Temperature overlay added (timestamp: %d)", radarTimestamp)
+                        NSLog("[TERRA5] MapKit: Temperature overlay added (timestamp: %d), total overlays: %d", radarTimestamp, mapView.overlays.count)
                     }
 
                     self.currentWeatherLayerType = layerType
+
+                    // Force map to refresh
+                    let center = mapView.centerCoordinate
+                    mapView.centerCoordinate = center
                 }
             }
         }
