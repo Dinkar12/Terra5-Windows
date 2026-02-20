@@ -11,6 +11,10 @@ import MapKit
 struct MapKitGlobeView: NSViewRepresentable {
     @EnvironmentObject var appState: AppState
 
+    // Explicit parameters to force SwiftUI to detect changes
+    let selectedWeatherLayer: WeatherLayerType
+    let weatherActive: Bool
+
     func makeNSView(context: Context) -> MKMapView {
         let mapView = MKMapView()
 
@@ -80,12 +84,13 @@ struct MapKitGlobeView: NSViewRepresentable {
         }
 
         // Update annotations based on active layers and data
+        // Use explicit parameters for weather to ensure SwiftUI detects changes
         context.coordinator.updateAnnotations(
             flights: appState.isLayerActive(.flights) ? appState.flights : [],
             satellites: appState.isLayerActive(.satellites) ? appState.satellites : [],
             earthquakes: appState.isLayerActive(.earthquakes) ? appState.earthquakes : [],
-            showWeather: appState.isLayerActive(.weather),
-            weatherLayerType: appState.selectedWeatherLayer,
+            showWeather: weatherActive,
+            weatherLayerType: selectedWeatherLayer,
             cctvCameras: appState.isLayerActive(.cctv) ? appState.cctvCameras : []
         )
     }
@@ -716,7 +721,7 @@ class CCTVAnnotationView: MKAnnotationView {
 }
 
 #Preview {
-    MapKitGlobeView()
+    MapKitGlobeView(selectedWeatherLayer: .rain, weatherActive: false)
         .environmentObject(AppState())
         .frame(width: 800, height: 600)
 }

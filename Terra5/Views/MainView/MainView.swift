@@ -28,8 +28,11 @@ struct MainView: View {
                 // Globe container with HUD overlay
                 ZStack {
                     // Native MapKit Globe (no WebKit sandbox issues)
-                    MapKitGlobeView()
-                        .environmentObject(appState)
+                    MapKitGlobeView(
+                        selectedWeatherLayer: appState.selectedWeatherLayer,
+                        weatherActive: appState.isLayerActive(.weather)
+                    )
+                    .environmentObject(appState)
 
                     // PANOPTIC Detection overlay
                     if appState.isPanopticActive {

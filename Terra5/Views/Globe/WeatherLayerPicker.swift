@@ -18,6 +18,7 @@ struct WeatherLayerPicker: View {
                     isSelected: appState.selectedWeatherLayer == layer
                 ) {
                     withAnimation(.easeInOut(duration: 0.2)) {
+                        NSLog("[TERRA5] WeatherLayerPicker: Switching to %@", layer.rawValue)
                         appState.selectedWeatherLayer = layer
                     }
                 }
