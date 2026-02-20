@@ -2,23 +2,18 @@
 //  ContentView.swift
 //  Terra5
 //
-//  Created by Walter Tengler on 20/02/2026.
+//  Legacy file - forwards to MainView
 //
 
 import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        MainView()
     }
 }
 
 #Preview {
     ContentView()
+        .frame(width: 1200, height: 800)
 }
