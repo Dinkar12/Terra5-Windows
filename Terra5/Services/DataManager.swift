@@ -219,6 +219,36 @@ class DataManager {
         appState.isLoadingCCTV = false
     }
 
+    private func fetchMilitary() async {
+        guard let appState = appState,
+              appState.isLayerActive(.military) else { return }
+
+        NSLog("[TERRA5] fetchMilitary: loading static database...")
+        appState.isLoadingMilitary = true
+        appState.militaryError = nil
+
+        appState.militaryBases = MilitaryBase.sampleBases
+        appState.militaryLastUpdate = Date()
+        NSLog("[TERRA5] fetchMilitary: loaded %d bases", appState.militaryBases.count)
+
+        appState.isLoadingMilitary = false
+    }
+
+    private func fetchNuclear() async {
+        guard let appState = appState,
+              appState.isLayerActive(.nuclear) else { return }
+
+        NSLog("[TERRA5] fetchNuclear: loading static database...")
+        appState.isLoadingNuclear = true
+        appState.nuclearError = nil
+
+        appState.nuclearSites = NuclearSite.sampleSites
+        appState.nuclearLastUpdate = Date()
+        NSLog("[TERRA5] fetchNuclear: loaded %d sites", appState.nuclearSites.count)
+
+        appState.isLoadingNuclear = false
+    }
+
     // Manual refresh methods (force=true bypasses layer active check)
     func refreshFlights() async {
         await fetchFlights()
@@ -242,6 +272,29 @@ class DataManager {
         NSLog("[TERRA5] DataManager.refreshCCTV called")
         await fetchCCTV(force: true)
         NSLog("[TERRA5] DataManager.refreshCCTV completed, cameras: %d", appState?.cctvCameras.count ?? -1)
+    }
+
+    func refreshMilitary() async {
+        NSLog("[TERRA5] DataManager.refreshMilitary called")
+        // Force load by temporarily bypassing guard
+        guard let appState = appState else { return }
+        appState.isLoadingMilitary = true
+        appState.militaryError = nil
+        appState.militaryBases = MilitaryBase.sampleBases
+        appState.militaryLastUpdate = Date()
+        appState.isLoadingMilitary = false
+        NSLog("[TERRA5] DataManager.refreshMilitary completed, bases: %d", appState.militaryBases.count)
+    }
+
+    func refreshNuclear() async {
+        NSLog("[TERRA5] DataManager.refreshNuclear called")
+        guard let appState = appState else { return }
+        appState.isLoadingNuclear = true
+        appState.nuclearError = nil
+        appState.nuclearSites = NuclearSite.sampleSites
+        appState.nuclearLastUpdate = Date()
+        appState.isLoadingNuclear = false
+        NSLog("[TERRA5] DataManager.refreshNuclear completed, sites: %d", appState.nuclearSites.count)
     }
 
     func refreshAll() async {

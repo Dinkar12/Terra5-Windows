@@ -40,6 +40,8 @@ struct MapKitGlobeView: NSViewRepresentable {
         mapView.register(SatelliteAnnotationView.self, forAnnotationViewWithReuseIdentifier: SatelliteAnnotationView.identifier)
         mapView.register(EarthquakeAnnotationView.self, forAnnotationViewWithReuseIdentifier: EarthquakeAnnotationView.identifier)
         mapView.register(CCTVAnnotationView.self, forAnnotationViewWithReuseIdentifier: CCTVAnnotationView.identifier)
+        mapView.register(MilitaryAnnotationView.self, forAnnotationViewWithReuseIdentifier: MilitaryAnnotationView.identifier)
+        mapView.register(NuclearAnnotationView.self, forAnnotationViewWithReuseIdentifier: NuclearAnnotationView.identifier)
 
         // Initial camera - Washington DC
         let camera = MKMapCamera(
@@ -98,7 +100,9 @@ struct MapKitGlobeView: NSViewRepresentable {
             flights: appState.isLayerActive(.flights) ? appState.flights : [],
             satellites: appState.isLayerActive(.satellites) ? appState.satellites : [],
             earthquakes: appState.isLayerActive(.earthquakes) ? appState.earthquakes : [],
-            cctvCameras: appState.isLayerActive(.cctv) ? appState.cctvCameras : []
+            cctvCameras: appState.isLayerActive(.cctv) ? appState.cctvCameras : [],
+            militaryBases: appState.isLayerActive(.military) ? appState.filteredMilitaryBases : [],
+            nuclearSites: appState.isLayerActive(.nuclear) ? appState.filteredNuclearSites : []
         )
     }
 
@@ -116,6 +120,8 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
     private var currentSatelliteIds: Set<String> = []
     private var currentEarthquakeIds: Set<String> = []
     private var currentCCTVIds: Set<String> = []
+    private var currentMilitaryIds: Set<String> = []
+    private var currentNuclearIds: Set<String> = []
 
     // Weather tile overlay (only used in 2D mode)
     private var weatherOverlay: MKTileOverlay?
@@ -143,7 +149,9 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
         flights: [Flight],
         satellites: [Satellite],
         earthquakes: [Earthquake],
-        cctvCameras: [CCTVCamera]
+        cctvCameras: [CCTVCamera],
+        militaryBases: [MilitaryBase] = [],
+        nuclearSites: [NuclearSite] = []
     ) {
         guard let mapView = mapView else {
             NSLog("[TERRA5] MapKit: mapView is nil!")
@@ -197,6 +205,32 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
             mapView.addAnnotations(cctvAnnotations)
 
             currentCCTVIds = newCCTVIds
+        }
+
+        // Update military bases
+        let newMilitaryIds = Set(militaryBases.map { $0.id })
+        if newMilitaryIds != currentMilitaryIds {
+            NSLog("[TERRA5] MapKit: Updating %d military annotations", militaryBases.count)
+            let oldMilitaryAnnotations = mapView.annotations.compactMap { $0 as? MilitaryAnnotation }
+            mapView.removeAnnotations(oldMilitaryAnnotations)
+
+            let militaryAnnotations = militaryBases.map { MilitaryAnnotation(base: $0) }
+            mapView.addAnnotations(militaryAnnotations)
+
+            currentMilitaryIds = newMilitaryIds
+        }
+
+        // Update nuclear sites
+        let newNuclearIds = Set(nuclearSites.map { $0.id })
+        if newNuclearIds != currentNuclearIds {
+            NSLog("[TERRA5] MapKit: Updating %d nuclear annotations", nuclearSites.count)
+            let oldNuclearAnnotations = mapView.annotations.compactMap { $0 as? NuclearAnnotation }
+            mapView.removeAnnotations(oldNuclearAnnotations)
+
+            let nuclearAnnotations = nuclearSites.map { NuclearAnnotation(site: $0) }
+            mapView.addAnnotations(nuclearAnnotations)
+
+            currentNuclearIds = newNuclearIds
         }
     }
 
@@ -296,6 +330,18 @@ class MapKitCoordinator: NSObject, MKMapViewDelegate {
         if let cctvAnnotation = annotation as? CCTVAnnotation {
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: CCTVAnnotationView.identifier, for: annotation) as! CCTVAnnotationView
             view.configure(with: cctvAnnotation.camera)
+            return view
+        }
+
+        if let militaryAnnotation = annotation as? MilitaryAnnotation {
+            let view = mapView.dequeueReusableAnnotationView(withIdentifier: MilitaryAnnotationView.identifier, for: annotation) as! MilitaryAnnotationView
+            view.configure(with: militaryAnnotation.base)
+            return view
+        }
+
+        if let nuclearAnnotation = annotation as? NuclearAnnotation {
+            let view = mapView.dequeueReusableAnnotationView(withIdentifier: NuclearAnnotationView.identifier, for: annotation) as! NuclearAnnotationView
+            view.configure(with: nuclearAnnotation.site)
             return view
         }
 
@@ -748,6 +794,355 @@ class CCTVAnnotationView: MKAnnotationView {
         }
         self.image = cctvImage
         frame = CGRect(x: 0, y: 0, width: size, height: size)
+    }
+}
+
+// MARK: - Military Annotation
+class MilitaryAnnotation: NSObject, MKAnnotation {
+    let base: MilitaryBase
+
+    init(base: MilitaryBase) {
+        self.base = base
+        super.init()
+    }
+
+    var coordinate: CLLocationCoordinate2D {
+        base.coordinate
+    }
+
+    var title: String? {
+        base.name
+    }
+
+    var subtitle: String? {
+        "\(base.branch.displayName) • \(base.baseType.displayName) • \(base.country)"
+    }
+}
+
+class MilitaryAnnotationView: MKAnnotationView {
+    static let identifier = "MilitaryAnnotation"
+    private var pulseTimer: Timer?
+    private var pulsePhase: CGFloat = 0
+    private var baseColor: NSColor = .white
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        setupView()
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+        setupView()
+    }
+
+    private func setupView() {
+        canShowCallout = true
+        frame = CGRect(x: 0, y: 0, width: 32, height: 32)
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        pulseTimer?.invalidate()
+        pulseTimer = nil
+    }
+
+    deinit {
+        pulseTimer?.invalidate()
+    }
+
+    func configure(with base: MilitaryBase) {
+        // Color by branch
+        switch base.branch {
+        case .airForce:
+            baseColor = NSColor(red: 0.3, green: 0.7, blue: 1.0, alpha: 1.0)
+        case .navy:
+            baseColor = NSColor(red: 0.1, green: 0.6, blue: 1.0, alpha: 1.0)
+        case .army:
+            baseColor = NSColor(red: 0.4, green: 0.9, blue: 0.3, alpha: 1.0)
+        case .marines:
+            baseColor = NSColor(red: 1.0, green: 0.3, blue: 0.3, alpha: 1.0)
+        case .spaceForce:
+            baseColor = NSColor(red: 0.7, green: 0.5, blue: 1.0, alpha: 1.0)
+        case .multiService:
+            baseColor = NSColor(red: 1.0, green: 0.85, blue: 0.2, alpha: 1.0)
+        case .foreign:
+            baseColor = NSColor(red: 1.0, green: 0.6, blue: 0.1, alpha: 1.0)
+        }
+
+        // Draw initial frame
+        redrawIcon()
+
+        // Start pulse timer — redraws image at 30fps with varying glow
+        pulseTimer?.invalidate()
+        pulseTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            self.pulsePhase += 0.035  // ~1.8s full cycle at 20fps
+            self.redrawIcon()
+        }
+    }
+
+    private func redrawIcon() {
+        let size: CGFloat = 32
+        let iconSize: CGFloat = 18
+        let glowPadding = (size - iconSize) / 2
+        let color = baseColor
+
+        // Pulse factor: 0.0 → 1.0 → 0.0 (sine wave)
+        let pulse = CGFloat(0.5 + 0.5 * sin(Double(pulsePhase) * 2.0 * .pi))
+        let glowAlpha = 0.08 + pulse * 0.25  // glow fades 0.08 → 0.33
+
+        let img = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
+            let center = NSPoint(x: size / 2, y: size / 2)
+
+            // Pulsing outer glow halo
+            let glowRadius = size / 2
+            for ring in stride(from: glowRadius, through: glowRadius * 0.4, by: -1.0) {
+                let ringFactor = 1.0 - (ring / glowRadius)
+                let alpha = glowAlpha * ringFactor
+                let glowRect = NSRect(
+                    x: center.x - ring, y: center.y - ring,
+                    width: ring * 2, height: ring * 2
+                )
+                color.withAlphaComponent(alpha).setFill()
+                NSBezierPath(ovalIn: glowRect).fill()
+            }
+
+            // Shield background
+            let shieldPath = NSBezierPath()
+            let cx = size / 2
+            let top = glowPadding
+            let bottom = size - glowPadding
+            let left = glowPadding
+            let right = size - glowPadding
+
+            shieldPath.move(to: NSPoint(x: cx, y: top))
+            shieldPath.line(to: NSPoint(x: right, y: top + 3))
+            shieldPath.line(to: NSPoint(x: right, y: top + iconSize * 0.55))
+            shieldPath.curve(to: NSPoint(x: cx, y: bottom),
+                            controlPoint1: NSPoint(x: right, y: top + iconSize * 0.75),
+                            controlPoint2: NSPoint(x: cx + 4, y: bottom - 1))
+            shieldPath.curve(to: NSPoint(x: left, y: top + iconSize * 0.55),
+                            controlPoint1: NSPoint(x: cx - 4, y: bottom - 1),
+                            controlPoint2: NSPoint(x: left, y: top + iconSize * 0.75))
+            shieldPath.line(to: NSPoint(x: left, y: top + 3))
+            shieldPath.close()
+
+            color.withAlphaComponent(0.9).setFill()
+            shieldPath.fill()
+
+            // Pulsing border brightness
+            color.withAlphaComponent(0.6 + pulse * 0.4).setStroke()
+            shieldPath.lineWidth = 1.2
+            shieldPath.stroke()
+
+            // Center star
+            let starSize: CGFloat = 7
+            let starCenter = NSPoint(x: cx, y: size * 0.5)
+            let starPath = NSBezierPath()
+            for i in 0..<5 {
+                let outerAngle = CGFloat(i) * (2 * .pi / 5) - .pi / 2
+                let innerAngle = outerAngle + .pi / 5
+                let outerPoint = NSPoint(
+                    x: starCenter.x + starSize / 2 * cos(outerAngle),
+                    y: starCenter.y + starSize / 2 * sin(outerAngle)
+                )
+                let innerPoint = NSPoint(
+                    x: starCenter.x + starSize / 4 * cos(innerAngle),
+                    y: starCenter.y + starSize / 4 * sin(innerAngle)
+                )
+                if i == 0 { starPath.move(to: outerPoint) }
+                else { starPath.line(to: outerPoint) }
+                starPath.line(to: innerPoint)
+            }
+            starPath.close()
+            NSColor.white.withAlphaComponent(0.9 + pulse * 0.1).setFill()
+            starPath.fill()
+
+            return true
+        }
+        self.image = img
+    }
+}
+
+// MARK: - Nuclear Annotation
+class NuclearAnnotation: NSObject, MKAnnotation {
+    let site: NuclearSite
+
+    init(site: NuclearSite) {
+        self.site = site
+        super.init()
+    }
+
+    var coordinate: CLLocationCoordinate2D {
+        site.coordinate
+    }
+
+    var title: String? {
+        site.name
+    }
+
+    var subtitle: String? {
+        var parts = [site.siteType.displayName, site.country]
+        if let mw = site.capacityMW, mw > 0 {
+            parts.append("\(mw) MW")
+        }
+        return parts.joined(separator: " • ")
+    }
+}
+
+class NuclearAnnotationView: MKAnnotationView {
+    static let identifier = "NuclearAnnotation"
+    private var pulseTimer: Timer?
+    private var pulsePhase: CGFloat = 0
+    private var baseColor: NSColor = .white
+    private var isWeapons: Bool = false
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        setupView()
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+        setupView()
+    }
+
+    private func setupView() {
+        canShowCallout = true
+        frame = CGRect(x: 0, y: 0, width: 34, height: 34)
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        pulseTimer?.invalidate()
+        pulseTimer = nil
+    }
+
+    deinit {
+        pulseTimer?.invalidate()
+    }
+
+    func configure(with site: NuclearSite) {
+        switch site.siteType {
+        case .powerPlant:
+            baseColor = NSColor(red: 0.1, green: 1.0, blue: 0.5, alpha: 1.0)
+            isWeapons = false
+        case .weaponsStorage, .icbmBase:
+            baseColor = NSColor(red: 1.0, green: 0.25, blue: 0.25, alpha: 1.0)
+            isWeapons = true
+        case .testSite:
+            baseColor = NSColor(red: 1.0, green: 0.7, blue: 0.1, alpha: 1.0)
+            isWeapons = true
+        case .submarineBase:
+            baseColor = NSColor(red: 1.0, green: 0.35, blue: 0.35, alpha: 1.0)
+            isWeapons = true
+        case .enrichmentFacility, .reprocessingPlant:
+            baseColor = NSColor(red: 1.0, green: 0.9, blue: 0.2, alpha: 1.0)
+            isWeapons = false
+        default:
+            baseColor = NSColor(red: 0.85, green: 0.6, blue: 1.0, alpha: 1.0)
+            isWeapons = false
+        }
+
+        // Draw initial frame
+        redrawIcon()
+
+        // Weapons pulse faster (more urgent feel)
+        let speed: CGFloat = isWeapons ? 0.055 : 0.03
+        pulseTimer?.invalidate()
+        pulseTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            self.pulsePhase += speed
+            self.redrawIcon()
+        }
+    }
+
+    private func redrawIcon() {
+        let size: CGFloat = 34
+        let color = baseColor
+        let pulse = CGFloat(0.5 + 0.5 * sin(Double(pulsePhase) * 2.0 * .pi))
+        let glowAlpha = 0.06 + pulse * 0.3
+
+        let img = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
+            let center = NSPoint(x: size / 2, y: size / 2)
+
+            // Pulsing multi-ring glow halo
+            let glowRadius = size / 2
+            for ring in stride(from: glowRadius, through: glowRadius * 0.35, by: -0.8) {
+                let ringFactor = 1.0 - (ring / glowRadius)
+                let alpha = glowAlpha * ringFactor
+                let glowRect = NSRect(
+                    x: center.x - ring, y: center.y - ring,
+                    width: ring * 2, height: ring * 2
+                )
+                color.withAlphaComponent(alpha).setFill()
+                NSBezierPath(ovalIn: glowRect).fill()
+            }
+
+            // Pulsing outer ring
+            let outerRingSize = size * 0.65
+            let outerRingRect = NSRect(
+                x: center.x - outerRingSize / 2,
+                y: center.y - outerRingSize / 2,
+                width: outerRingSize,
+                height: outerRingSize
+            )
+            color.withAlphaComponent(0.3 + pulse * 0.4).setStroke()
+            let outerRing = NSBezierPath(ovalIn: outerRingRect)
+            outerRing.lineWidth = 1.5
+            outerRing.stroke()
+
+            // Radiation trefoil blades
+            let trefoilRadius: CGFloat = 9
+            for i in 0..<3 {
+                let angle = CGFloat(i) * (2 * .pi / 3) - .pi / 2
+                let bladePath = NSBezierPath()
+                let startAngle = angle - 0.45
+                let endAngle = angle + 0.45
+
+                bladePath.move(to: center)
+                bladePath.appendArc(
+                    withCenter: center,
+                    radius: trefoilRadius,
+                    startAngle: startAngle * 180 / .pi,
+                    endAngle: endAngle * 180 / .pi,
+                    clockwise: false
+                )
+                bladePath.close()
+
+                color.withAlphaComponent(0.7 + pulse * 0.3).setFill()
+                bladePath.fill()
+
+                color.withAlphaComponent(0.5 + pulse * 0.5).setStroke()
+                bladePath.lineWidth = 0.5
+                bladePath.stroke()
+            }
+
+            // Center dot — pulses brighter
+            let dotSize: CGFloat = 5
+            let dotRect = NSRect(
+                x: center.x - dotSize / 2,
+                y: center.y - dotSize / 2,
+                width: dotSize,
+                height: dotSize
+            )
+            color.withAlphaComponent(0.8 + pulse * 0.2).setFill()
+            NSBezierPath(ovalIn: dotRect).fill()
+
+            // White hot-center
+            let hotSize: CGFloat = 2.5
+            let hotRect = NSRect(
+                x: center.x - hotSize / 2,
+                y: center.y - hotSize / 2,
+                width: hotSize,
+                height: hotSize
+            )
+            NSColor.white.withAlphaComponent(0.6 + pulse * 0.4).setFill()
+            NSBezierPath(ovalIn: hotRect).fill()
+
+            return true
+        }
+        self.image = img
     }
 }
 

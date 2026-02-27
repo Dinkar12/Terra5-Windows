@@ -77,6 +77,8 @@ class AppState: ObservableObject {
     @Published var weatherRadars: [WeatherRadar] = []
     @Published var weatherAlerts: [WeatherAlert] = []
     @Published var cctvCameras: [CCTVCamera] = []
+    @Published var militaryBases: [MilitaryBase] = []
+    @Published var nuclearSites: [NuclearSite] = []
 
     // MARK: - Data Counts (computed)
     var flightCount: Int { flights.count }
@@ -85,6 +87,8 @@ class AppState: ObservableObject {
     var weatherRadarCount: Int { weatherRadars.count }
     var weatherAlertCount: Int { weatherAlerts.count }
     var cctvCount: Int { cctvCameras.count }
+    var militaryBaseCount: Int { militaryBases.count }
+    var nuclearSiteCount: Int { nuclearSites.count }
 
     // MARK: - Timestamps
     @Published var flightsLastUpdate: Date?
@@ -92,6 +96,8 @@ class AppState: ObservableObject {
     @Published var earthquakesLastUpdate: Date?
     @Published var weatherLastUpdate: Date?
     @Published var cctvLastUpdate: Date?
+    @Published var militaryLastUpdate: Date?
+    @Published var nuclearLastUpdate: Date?
 
     // MARK: - Loading States
     @Published var isLoadingFlights: Bool = false
@@ -99,6 +105,8 @@ class AppState: ObservableObject {
     @Published var isLoadingEarthquakes: Bool = false
     @Published var isLoadingWeather: Bool = false
     @Published var isLoadingCCTV: Bool = false
+    @Published var isLoadingMilitary: Bool = false
+    @Published var isLoadingNuclear: Bool = false
     @Published var isWeatherDataReady: Bool = false
 
     // MARK: - Error States
@@ -107,9 +115,49 @@ class AppState: ObservableObject {
     @Published var earthquakesError: String?
     @Published var weatherError: String?
     @Published var cctvError: String?
+    @Published var militaryError: String?
+    @Published var nuclearError: String?
 
     // MARK: - Globe Ready State
     @Published var isGlobeReady: Bool = false
+
+    // MARK: - Military & Nuclear Filters
+    @Published var activeMilitaryFilters: Set<MilitaryBase.Branch> = Set(MilitaryBase.Branch.allCases)
+    @Published var activeNuclearFilters: Set<NuclearSite.SiteType> = Set(NuclearSite.SiteType.allCases)
+
+    /// Filtered military bases based on active branch filters
+    var filteredMilitaryBases: [MilitaryBase] {
+        militaryBases.filter { activeMilitaryFilters.contains($0.branch) }
+    }
+
+    /// Filtered nuclear sites based on active type filters
+    var filteredNuclearSites: [NuclearSite] {
+        nuclearSites.filter { activeNuclearFilters.contains($0.siteType) }
+    }
+
+    func toggleMilitaryFilter(_ branch: MilitaryBase.Branch) {
+        if activeMilitaryFilters.contains(branch) {
+            activeMilitaryFilters.remove(branch)
+        } else {
+            activeMilitaryFilters.insert(branch)
+        }
+    }
+
+    func toggleNuclearFilter(_ siteType: NuclearSite.SiteType) {
+        if activeNuclearFilters.contains(siteType) {
+            activeNuclearFilters.remove(siteType)
+        } else {
+            activeNuclearFilters.insert(siteType)
+        }
+    }
+
+    func resetMilitaryFilters() {
+        activeMilitaryFilters = Set(MilitaryBase.Branch.allCases)
+    }
+
+    func resetNuclearFilters() {
+        activeNuclearFilters = Set(NuclearSite.SiteType.allCases)
+    }
 
     // MARK: - Detection State
     @Published var detectionCount: Int = 0
@@ -214,6 +262,10 @@ class AppState: ObservableObject {
             cctvCameras = []
         case .traffic:
             break
+        case .military:
+            militaryBases = []
+        case .nuclear:
+            nuclearSites = []
         }
     }
 
@@ -243,6 +295,14 @@ class AppState: ObservableObject {
                 NSLog("[TERRA5] CCTV fetch complete, count: %d", self.cctvCameras.count)
             case .traffic:
                 NSLog("[TERRA5] Traffic layer not implemented")
+            case .military:
+                NSLog("[TERRA5] Calling dataManager.refreshMilitary()")
+                await dataManager.refreshMilitary()
+                NSLog("[TERRA5] Military fetch complete, count: %d", self.militaryBases.count)
+            case .nuclear:
+                NSLog("[TERRA5] Calling dataManager.refreshNuclear()")
+                await dataManager.refreshNuclear()
+                NSLog("[TERRA5] Nuclear fetch complete, count: %d", self.nuclearSites.count)
             }
             NSLog("[TERRA5] Task completed for %@", layer.rawValue)
         }
@@ -335,8 +395,8 @@ class AppState: ObservableObject {
         // Sidebar state
         defaults.set(isSidebarExpanded, forKey: SettingsKey.sidebarExpanded)
 
-        // Active layers (exclude CCTV — it should always start off since it fetches live data)
-        let layerStrings = activeLayers.filter { $0 != .cctv }.map { $0.rawValue }
+        // Active layers (exclude CCTV/military/nuclear — they should always start off)
+        let layerStrings = activeLayers.filter { $0 != .cctv && $0 != .military && $0 != .nuclear }.map { $0.rawValue }
         defaults.set(layerStrings, forKey: SettingsKey.activeLayers)
 
         // Current city (store index)

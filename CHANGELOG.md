@@ -2,6 +2,51 @@
 
 All notable changes to Terra5 (WORLDVIEW) will be documented in this file.
 
+## [1.2.0] - 2026-02-27
+
+### Added
+
+#### Military Bases Layer
+- `MilitaryBase` model with 149 worldwide bases (US Army, Navy, Air Force, Marines, Space Force, Joint, plus Russian, Chinese, UK, French, Turkish, NATO)
+- Branch enum: Army, Navy, Air Force, Marines, Space Force, Multi-Service, Foreign
+- Base type enum: Air Base, Naval Base, Army Post, Marine Base, Joint Base, ICBM Silo, Command Center, Training Facility, Intelligence Facility, Foreign Base
+- Shield-with-star annotation icons, color-coded by branch
+- Timer-driven pulsing glow animation (sine-wave radial halo at 20fps)
+- Branch filter panel with per-type ON/OFF toggles
+
+#### Nuclear Sites Layer
+- `NuclearSite` model with ~140+ worldwide sites (US/international power plants, weapons storage, ICBM bases, enrichment facilities, test sites, submarine bases)
+- Site type enum: Power Plant, Weapons Storage, ICBM Base, Research Reactor, Enrichment Facility, Reprocessing Plant, Waste Storage, Test Site, Submarine Base, Command Control
+- Radiation trefoil annotation icons, color-coded by type (green=civilian, red=weapons, orange=test, yellow=enrichment)
+- Weapons sites pulse faster (1.1s cycle) than civilian sites (1.7s) for visual urgency
+- Site type filter panel with per-type ON/OFF toggles
+
+#### Filter Selector Panel
+- `MilitaryNuclearFilterPanel` — floating bottom-right panel (appears when either layer is active)
+- Per-branch military filter toggles with colored ON/OFF indicators
+- Per-type nuclear filter toggles with colored ON/OFF indicators
+- Live filtered count display in panel headers
+- "ALL" reset button to re-enable all filters
+- `FilterToggleRow` reusable component with icon, label, color, and toggle state
+
+#### CCTV Ad Blocking
+- `WKContentRuleList` network-level ad blocking (35+ ad/tracking domains)
+- Provider-specific CSS injection for SkylineWebcams, WebcamTaxi, EarthCam, EarthTV, BeachCam
+- Cookie consent auto-dismiss (20+ selectors with retries)
+- Periodic dynamic ad cleanup JS (every 3s for 30s)
+- Navigation blocking for ad domain redirects
+
+### Changed
+- `DataLayerType` extended with `.military` and `.nuclear` cases
+- `AppState` gains filter state (`activeMilitaryFilters`, `activeNuclearFilters`), computed `filteredMilitaryBases`/`filteredNuclearSites`
+- `DataManager` loads military/nuclear from static databases (no API needed)
+- `MapKitGlobeView` registers and renders `MilitaryAnnotation`/`NuclearAnnotation` with custom pulsing views
+- `CCTVCamera` database rebuilt with 115 verified webcam URLs across 61 cities
+- `CCTVStreamPopup` completely rewritten with multi-layered ad blocking
+- Military and nuclear layers excluded from settings persistence (always start off)
+
+---
+
 ## [1.1.0] - 2026-02-20
 
 ### Added

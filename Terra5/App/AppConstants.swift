@@ -229,6 +229,8 @@ enum DataLayerType: String, CaseIterable, Identifiable {
     case traffic = "traffic"
     case weather = "weather"
     case cctv = "cctv"
+    case military = "military"
+    case nuclear = "nuclear"
 
     var id: String { rawValue }
 
@@ -240,6 +242,8 @@ enum DataLayerType: String, CaseIterable, Identifiable {
         case .traffic: return "Street Traffic"
         case .weather: return "Weather Radar"
         case .cctv: return "CCTV Cameras"
+        case .military: return "Military Bases"
+        case .nuclear: return "Nuclear Sites"
         }
     }
 
@@ -251,6 +255,8 @@ enum DataLayerType: String, CaseIterable, Identifiable {
         case .traffic: return "car.fill"
         case .weather: return "cloud.rain"
         case .cctv: return "video.fill"
+        case .military: return "shield.fill"
+        case .nuclear: return "bolt.trianglebadge.exclamationmark.fill"
         }
     }
 
@@ -261,7 +267,9 @@ enum DataLayerType: String, CaseIterable, Identifiable {
         case .earthquakes: return "USGS"
         case .traffic: return "OpenStreetMap"
         case .weather: return "RainViewer / NASA"
-        case .cctv: return "insecam.org"
+        case .cctv: return "Public Webcams"
+        case .military: return "DoD / Wikipedia"
+        case .nuclear: return "IAEA / FAS"
         }
     }
 }

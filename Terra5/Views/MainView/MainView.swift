@@ -69,6 +69,20 @@ struct MainView: View {
                         }
                     }
 
+                    // Military/Nuclear filter panel (bottom-right when layers active)
+                    if appState.isLayerActive(.military) || appState.isLayerActive(.nuclear) {
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Spacer()
+                                MilitaryNuclearFilterPanel()
+                                    .environmentObject(appState)
+                                    .padding(.bottom, 60)
+                                    .padding(.trailing, 16)
+                            }
+                        }
+                    }
+
                     // CCTV stream popup (when a camera is selected)
                     if let camera = appState.selectedCCTVCamera {
                         CCTVStreamPopup(camera: camera)
@@ -1028,6 +1042,8 @@ struct DataLayerToggleRow: View {
         case .weather: return appState.weatherRadarCount
         case .cctv: return appState.cctvCount
         case .traffic: return 0
+        case .military: return appState.militaryBaseCount
+        case .nuclear: return appState.nuclearSiteCount
         }
     }
 
@@ -1040,6 +1056,8 @@ struct DataLayerToggleRow: View {
         case .weather: date = appState.weatherLastUpdate
         case .cctv: date = appState.cctvLastUpdate
         case .traffic: date = nil
+        case .military: date = appState.militaryLastUpdate
+        case .nuclear: date = appState.nuclearLastUpdate
         }
 
         guard let date = date else { return "never" }
@@ -1274,6 +1292,192 @@ struct PANOPTICToggle: View {
                 .padding(.vertical, 4)
             }
         }
+    }
+}
+
+// MARK: - Military & Nuclear Filter Panel
+struct MilitaryNuclearFilterPanel: View {
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Military filters
+            if appState.isLayerActive(.military) {
+                VStack(alignment: .leading, spacing: 6) {
+                    // Header with count
+                    HStack {
+                        Image(systemName: "shield.fill")
+                            .font(.system(size: 10))
+                        Text("MILITARY BASES")
+                            .font(Typography.labelFont)
+                        Spacer()
+                        Text("\(appState.filteredMilitaryBases.count)")
+                            .font(Typography.hudFont)
+                            .foregroundColor(Theme.accent)
+
+                        // Reset button
+                        Button(action: { appState.resetMilitaryFilters() }) {
+                            Text("ALL")
+                                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                .foregroundColor(Theme.accent)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .stroke(Theme.accent.opacity(0.5), lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .foregroundColor(Theme.accent)
+                    .padding(.bottom, 4)
+
+                    // Branch filter toggles
+                    ForEach(MilitaryBase.Branch.allCases, id: \.rawValue) { branch in
+                        FilterToggleRow(
+                            icon: branch.icon,
+                            label: branch.displayName,
+                            isActive: appState.activeMilitaryFilters.contains(branch),
+                            color: militaryBranchColor(branch)
+                        ) {
+                            appState.toggleMilitaryFilter(branch)
+                        }
+                    }
+                }
+                .padding(10)
+            }
+
+            // Divider between sections
+            if appState.isLayerActive(.military) && appState.isLayerActive(.nuclear) {
+                Rectangle()
+                    .fill(Theme.border)
+                    .frame(height: 1)
+            }
+
+            // Nuclear filters
+            if appState.isLayerActive(.nuclear) {
+                VStack(alignment: .leading, spacing: 6) {
+                    // Header with count
+                    HStack {
+                        Image(systemName: "bolt.trianglebadge.exclamationmark.fill")
+                            .font(.system(size: 10))
+                        Text("NUCLEAR SITES")
+                            .font(Typography.labelFont)
+                        Spacer()
+                        Text("\(appState.filteredNuclearSites.count)")
+                            .font(Typography.hudFont)
+                            .foregroundColor(Theme.warning)
+
+                        // Reset button
+                        Button(action: { appState.resetNuclearFilters() }) {
+                            Text("ALL")
+                                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                .foregroundColor(Theme.warning)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .stroke(Theme.warning.opacity(0.5), lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .foregroundColor(Theme.warning)
+                    .padding(.bottom, 4)
+
+                    // Site type filter toggles
+                    ForEach(NuclearSite.SiteType.allCases, id: \.rawValue) { siteType in
+                        FilterToggleRow(
+                            icon: siteType.icon,
+                            label: siteType.displayName,
+                            isActive: appState.activeNuclearFilters.contains(siteType),
+                            color: nuclearSiteColor(siteType)
+                        ) {
+                            appState.toggleNuclearFilter(siteType)
+                        }
+                    }
+                }
+                .padding(10)
+            }
+        }
+        .frame(width: 220)
+        .background(Theme.panelBackground)
+        .cornerRadius(6)
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Theme.border, lineWidth: 1)
+        )
+    }
+
+    func militaryBranchColor(_ branch: MilitaryBase.Branch) -> Color {
+        switch branch {
+        case .airForce: return Color(red: 0.2, green: 0.6, blue: 1.0)
+        case .navy: return Color(red: 0.0, green: 0.5, blue: 0.8)
+        case .army: return Color(red: 0.4, green: 0.7, blue: 0.2)
+        case .marines: return Color(red: 0.8, green: 0.2, blue: 0.2)
+        case .spaceForce: return Color(red: 0.6, green: 0.4, blue: 1.0)
+        case .multiService: return Color(red: 0.9, green: 0.7, blue: 0.0)
+        case .foreign: return Color(red: 1.0, green: 0.5, blue: 0.0)
+        }
+    }
+
+    func nuclearSiteColor(_ siteType: NuclearSite.SiteType) -> Color {
+        switch siteType {
+        case .powerPlant: return Color(red: 0.0, green: 0.9, blue: 0.4)
+        case .weaponsStorage, .icbmBase: return Color(red: 1.0, green: 0.2, blue: 0.2)
+        case .testSite: return Color(red: 1.0, green: 0.6, blue: 0.0)
+        case .submarineBase: return Color(red: 1.0, green: 0.3, blue: 0.3)
+        case .enrichmentFacility, .reprocessingPlant: return Color(red: 1.0, green: 0.8, blue: 0.0)
+        default: return Color(red: 0.8, green: 0.5, blue: 1.0)
+        }
+    }
+
+}
+
+// MARK: - Filter Toggle Row
+struct FilterToggleRow: View {
+    let icon: String
+    let label: String
+    let isActive: Bool
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 10))
+                    .foregroundColor(isActive ? color : Theme.textMuted)
+                    .frame(width: 16)
+
+                Text(label)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(isActive ? .white : Theme.textMuted)
+
+                Spacer()
+
+                Text(isActive ? "ON" : "OFF")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundColor(isActive ? color : Theme.textMuted)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(isActive ? color.opacity(0.2) : Color.clear)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 3)
+                            .stroke(isActive ? color.opacity(0.5) : Theme.border, lineWidth: 1)
+                    )
+            }
+            .padding(.vertical, 3)
+            .padding(.horizontal, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(isActive ? color.opacity(0.08) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
