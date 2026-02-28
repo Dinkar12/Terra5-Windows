@@ -1,549 +1,984 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terra5 Globe</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terra5 — WORLDVIEW ULTIMATE</title>
+<link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --green:#00ff9d;--green-dim:#00d4aa;--red:#ff4444;--blue:#00aaff;
+  --yellow:#ffcc00;--orange:#ff8800;--purple:#cc44ff;--cyan:#00ffff;
+  --bg:#060a0f;--panel:rgba(4,10,18,0.94);--border:rgba(0,255,157,0.18);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:'Share Tech Mono',monospace;color:var(--green);}
+#cesiumContainer{width:100%;height:100%;}
+.cesium-viewer-toolbar,.cesium-viewer-animationContainer,.cesium-viewer-timelineContainer,
+.cesium-viewer-bottom,.cesium-viewer-fullscreenContainer,.cesium-credit-logoContainer,
+.cesium-credit-textContainer,.cesium-widget-credits{display:none !important;}
 
-    <!-- Cesium.js -->
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
-    <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+/* ── HEADER ── */
+#header{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:9px 18px;background:linear-gradient(180deg,rgba(4,10,18,0.99) 60%,transparent);border-bottom:1px solid var(--border);}
+.logo{font-family:'Orbitron',sans-serif;font-weight:900;font-size:16px;letter-spacing:5px;color:var(--green);text-shadow:0 0 20px rgba(0,255,157,0.7);}
+.logo span{color:rgba(0,255,157,0.35);font-weight:400;font-size:9px;letter-spacing:3px;display:block;margin-top:1px;}
+#clock{font-family:'Orbitron',sans-serif;font-size:12px;letter-spacing:3px;color:var(--green);text-align:right;}
+#clock .date{font-size:9px;color:rgba(0,255,157,0.4);letter-spacing:2px;}
 
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+/* ── SEARCH BAR ── */
+#search-wrap{display:flex;align-items:center;gap:0;}
+#search-input{background:rgba(0,255,157,0.04);border:1px solid var(--border);border-right:none;color:var(--green);font-family:'Share Tech Mono',monospace;font-size:11px;padding:5px 10px;width:180px;outline:none;letter-spacing:1px;}
+#search-input::placeholder{color:rgba(0,255,157,0.25);}
+#search-input:focus{border-color:var(--green);background:rgba(0,255,157,0.07);}
+#search-btn{background:rgba(0,255,157,0.1);border:1px solid var(--border);color:var(--green);font-family:'Share Tech Mono',monospace;font-size:10px;padding:5px 10px;cursor:pointer;letter-spacing:1px;transition:all 0.15s;}
+#search-btn:hover{background:rgba(0,255,157,0.2);border-color:var(--green);}
 
-        html, body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background: #0a0a0a;
-        }
+/* ── LEFT PANEL ── */
+#left-panel{position:fixed;left:14px;top:68px;bottom:28px;width:210px;z-index:150;display:flex;flex-direction:column;gap:7px;overflow-y:auto;}
+#left-panel::-webkit-scrollbar{width:0;}
+.panel-box{background:var(--panel);border:1px solid var(--border);border-radius:1px;padding:10px;backdrop-filter:blur(16px);}
+.panel-title{font-family:'Orbitron',sans-serif;font-size:8px;letter-spacing:3px;color:rgba(0,255,157,0.45);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:5px;}
+.panel-title::before{content:'';width:4px;height:4px;background:var(--green);border-radius:50%;box-shadow:0 0 5px var(--green);animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.15}}
 
-        #cesiumContainer {
-            width: 100%;
-            height: 100%;
-            background: #0a0a0a;
-        }
+.layer-toggle{display:flex;align-items:center;justify-content:space-between;padding:4px 0;cursor:pointer;border-bottom:1px solid rgba(0,255,157,0.04);}
+.layer-toggle:last-child{border-bottom:none;}
+.layer-label{display:flex;align-items:center;gap:6px;font-size:9px;letter-spacing:1px;}
+.layer-dot{width:6px;height:6px;border-radius:50%;}
+.dot-flights{background:var(--green-dim);box-shadow:0 0 4px var(--green-dim);}
+.dot-satellites{background:var(--blue);box-shadow:0 0 4px var(--blue);}
+.dot-earthquakes{background:var(--red);box-shadow:0 0 4px var(--red);}
+.dot-borders{background:var(--green);box-shadow:0 0 4px var(--green);}
+.dot-ships{background:var(--yellow);box-shadow:0 0 4px var(--yellow);}
+.dot-volcanoes{background:var(--orange);box-shadow:0 0 4px var(--orange);}
+.dot-fires{background:#ff2200;box-shadow:0 0 4px #ff2200;}
+.dot-weather{background:var(--cyan);box-shadow:0 0 4px var(--cyan);}
+.dot-trails{background:var(--purple);box-shadow:0 0 4px var(--purple);}
 
-        /* Hide Cesium default UI elements */
-        .cesium-viewer-toolbar,
-        .cesium-viewer-animationContainer,
-        .cesium-viewer-timelineContainer,
-        .cesium-viewer-bottom,
-        .cesium-viewer-fullscreenContainer,
-        .cesium-credit-logoContainer,
-        .cesium-credit-textContainer {
-            display: none !important;
-        }
+.toggle-switch{width:24px;height:12px;background:rgba(0,255,157,0.08);border:1px solid var(--border);border-radius:6px;position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0;}
+.toggle-switch.on{background:rgba(0,255,157,0.28);border-color:var(--green);}
+.toggle-switch::after{content:'';position:absolute;top:2px;left:2px;width:6px;height:6px;background:rgba(0,255,157,0.3);border-radius:50%;transition:left 0.2s,background 0.2s;}
+.toggle-switch.on::after{left:14px;background:var(--green);box-shadow:0 0 4px var(--green);}
 
-        /* Custom styling for any remaining Cesium elements */
-        .cesium-widget-credits {
-            display: none !important;
-        }
-    </style>
+.stat-row{display:flex;justify-content:space-between;align-items:baseline;padding:2px 0;font-size:9px;}
+.stat-label{color:rgba(0,255,157,0.35);font-size:8px;}
+.stat-value{color:var(--green);font-size:11px;font-weight:bold;}
+
+.mode-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;}
+.mode-btn{background:rgba(0,255,157,0.03);border:1px solid rgba(0,255,157,0.1);color:rgba(0,255,157,0.4);font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:1px;padding:5px 2px;cursor:pointer;border-radius:1px;transition:all 0.15s;text-align:center;}
+.mode-btn:hover{background:rgba(0,255,157,0.08);color:var(--green);border-color:rgba(0,255,157,0.4);}
+.mode-btn.active{background:rgba(0,255,157,0.15);color:var(--green);border-color:var(--green);box-shadow:0 0 6px rgba(0,255,157,0.15);}
+
+/* ── RIGHT PANEL ── */
+#right-panel{position:fixed;right:14px;top:68px;width:230px;z-index:150;display:flex;flex-direction:column;gap:7px;max-height:calc(100vh - 100px);overflow-y:auto;}
+#right-panel::-webkit-scrollbar{width:0;}
+.feed-list{max-height:170px;overflow-y:auto;}
+.feed-list::-webkit-scrollbar{width:2px;}
+.feed-list::-webkit-scrollbar-thumb{background:var(--border);}
+.feed-item{padding:4px 3px;border-bottom:1px solid rgba(0,255,157,0.05);font-size:9px;line-height:1.5;cursor:pointer;transition:all 0.1s;}
+.feed-item:hover{background:rgba(0,255,157,0.04);padding-left:6px;}
+.feed-item:last-child{border-bottom:none;}
+.fi-title{color:var(--green);letter-spacing:0.5px;}
+.fi-sub{color:rgba(0,255,157,0.35);font-size:8px;}
+.fi-mag{color:var(--red);font-weight:bold;}
+.fi-sat{color:var(--blue);}
+.fi-ship{color:var(--yellow);}
+.fi-fire{color:#ff4400;}
+.fi-vol{color:var(--orange);}
+
+/* ── INFO PANEL ── */
+#info-panel{position:fixed;bottom:32px;left:50%;transform:translateX(-50%);z-index:400;min-width:400px;max-width:540px;background:var(--panel);border:1px solid var(--green);border-radius:1px;padding:13px 16px;backdrop-filter:blur(24px);box-shadow:0 0 50px rgba(0,255,157,0.1),0 2px 20px rgba(0,0,0,0.8);display:none;}
+#info-panel.visible{display:block;animation:panelIn 0.18s ease;}
+@keyframes panelIn{from{opacity:0;transform:translateX(-50%) translateY(6px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.ip-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;}
+.ip-left{display:flex;align-items:center;gap:9px;}
+.ip-icon{font-size:22px;}
+.ip-name{font-family:'Orbitron',sans-serif;font-size:13px;font-weight:700;color:var(--green);text-shadow:0 0 8px rgba(0,255,157,0.35);}
+.ip-badge{font-size:7px;letter-spacing:2px;color:rgba(0,255,157,0.35);margin-top:2px;}
+.ip-close{cursor:pointer;color:rgba(0,255,157,0.35);font-size:17px;padding:2px 5px;transition:color 0.1s;}
+.ip-close:hover{color:var(--green);}
+.ip-location{font-size:9px;letter-spacing:1px;margin-bottom:11px;padding:5px 9px;border-left:2px solid var(--yellow);background:rgba(255,204,0,0.05);color:var(--yellow);}
+.ip-grid{display:grid;gap:5px;}
+.ip-grid-3{grid-template-columns:1fr 1fr 1fr;}
+.ip-grid-2{grid-template-columns:1fr 1fr;}
+.ip-grid-4{grid-template-columns:1fr 1fr 1fr 1fr;}
+.ip-stat{text-align:center;padding:6px 3px;background:rgba(0,255,157,0.025);border:1px solid rgba(0,255,157,0.08);border-radius:1px;}
+.ip-stat .val{font-size:12px;color:var(--green);font-weight:bold;}
+.ip-stat .lbl{font-size:7px;color:rgba(0,255,157,0.35);letter-spacing:1px;margin-top:2px;}
+.ip-stat.red .val{color:var(--red);}
+.ip-stat.blue .val{color:var(--blue);}
+.ip-stat.yellow .val{color:var(--yellow);}
+.ip-stat.orange .val{color:var(--orange);}
+.ip-stat.purple .val{color:var(--purple);}
+.ip-stat.cyan .val{color:var(--cyan);}
+
+/* ── LOADING ── */
+#loading{position:fixed;inset:0;z-index:600;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity 0.7s;}
+#loading.hidden{opacity:0;pointer-events:none;}
+.load-logo{font-family:'Orbitron',sans-serif;font-size:28px;font-weight:900;letter-spacing:8px;color:var(--green);text-shadow:0 0 40px rgba(0,255,157,0.9);}
+.load-sub{font-size:8px;letter-spacing:5px;color:rgba(0,255,157,0.25);}
+.load-bar-wrap{width:260px;height:1px;background:rgba(0,255,157,0.07);border:1px solid var(--border);}
+.load-bar{height:100%;width:0%;background:var(--green);box-shadow:0 0 8px var(--green);transition:width 0.35s;}
+.load-status{font-size:8px;letter-spacing:2px;color:rgba(0,255,157,0.35);}
+.load-items{display:flex;gap:20px;font-size:8px;color:rgba(0,255,157,0.2);letter-spacing:1px;}
+.load-item.done{color:var(--green);}
+
+/* ── STATUS BAR ── */
+#statusbar{position:fixed;bottom:0;left:0;right:0;z-index:150;display:flex;align-items:center;gap:14px;padding:4px 16px;background:linear-gradient(0deg,rgba(4,10,18,0.99) 60%,transparent);border-top:1px solid var(--border);font-size:8px;letter-spacing:1px;color:rgba(0,255,157,0.35);white-space:nowrap;overflow:hidden;}
+.sdot{width:4px;height:4px;border-radius:50%;animation:blink 2s infinite;display:inline-block;margin-right:3px;}
+.sdot.g{background:var(--green);}.sdot.r{background:var(--red);}.sdot.b{background:var(--blue);}.sdot.y{background:var(--yellow);}
+
+/* ── SCANLINES ── */
+#scanlines{position:fixed;inset:0;z-index:50;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.02) 2px,rgba(0,0,0,0.02) 4px);}
+
+/* ── CORNERS ── */
+.corner{position:fixed;z-index:160;width:16px;height:16px;pointer-events:none;}
+.corner.tl{top:62px;left:7px;border-top:1px solid var(--green);border-left:1px solid var(--green);}
+.corner.tr{top:62px;right:7px;border-top:1px solid var(--green);border-right:1px solid var(--green);}
+.corner.bl{bottom:24px;left:7px;border-bottom:1px solid var(--green);border-left:1px solid var(--green);}
+.corner.br{bottom:24px;right:7px;border-bottom:1px solid var(--green);border-right:1px solid var(--green);}
+
+/* ── ALERT TICKER ── */
+#ticker{position:fixed;top:62px;left:50%;transform:translateX(-50%);z-index:160;font-size:9px;letter-spacing:1px;color:var(--red);background:rgba(255,68,68,0.08);border:1px solid rgba(255,68,68,0.3);padding:3px 12px;display:none;animation:blink 1s infinite;}
+
+/* ── TRAIL toggle indicator ── */
+#trail-count{font-size:9px;color:var(--purple);margin-left:4px;}
+</style>
 </head>
 <body>
-    <div id="cesiumContainer"></div>
-
-    <script>
-        // Terra5 Globe Controller
-        const Terra5 = {
-            viewer: null,
-            dataSources: {},
-            currentMode: 'normal',
-            postProcessStages: [],
-
-            // Initialize Cesium viewer
-            init() {
-                // Use default imagery (no Ion token required for basic functionality)
-                // For production, add your Cesium Ion token here:
-                // Cesium.Ion.defaultAccessToken = 'YOUR_TOKEN';
-
-                this.viewer = new Cesium.Viewer('cesiumContainer', {
-                    // Use ArcGIS World Imagery (freely accessible)
-                    imageryProvider: new Cesium.ArcGisMapServerImageryProvider({
-                        url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
-                    }),
-                    baseLayerPicker: false,
-                    geocoder: false,
-                    homeButton: false,
-                    sceneModePicker: false,
-                    navigationHelpButton: false,
-                    animation: false,
-                    timeline: false,
-                    fullscreenButton: false,
-                    vrButton: false,
-                    selectionIndicator: false,
-                    infoBox: false,
-                    shouldAnimate: true,
-                    skyBox: false,
-                    skyAtmosphere: new Cesium.SkyAtmosphere()
-                });
-
-                // Dark styling
-                this.viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#0a0a0a');
-                this.viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0a0a0a');
-                this.viewer.scene.globe.enableLighting = false;
-                this.viewer.scene.fog.enabled = true;
-                this.viewer.scene.fog.density = 0.0001;
-
-                // Atmosphere styling
-                if (this.viewer.scene.skyAtmosphere) {
-                    this.viewer.scene.skyAtmosphere.brightnessShift = -0.3;
-                    this.viewer.scene.skyAtmosphere.saturationShift = -0.5;
-                }
-
-                // Initialize data sources
-                this.dataSources.flights = new Cesium.CustomDataSource('flights');
-                this.dataSources.satellites = new Cesium.CustomDataSource('satellites');
-                this.dataSources.earthquakes = new Cesium.CustomDataSource('earthquakes');
-
-                Object.values(this.dataSources).forEach(ds => {
-                    this.viewer.dataSources.add(ds);
-                });
-
-                // Camera change listener
-                this.viewer.camera.changed.addEventListener(() => {
-                    this.notifyCameraChange();
-                });
-
-                // Click handler
-                this.viewer.screenSpaceEventHandler.setInputAction((click) => {
-                    const pickedObject = this.viewer.scene.pick(click.position);
-                    if (Cesium.defined(pickedObject) && pickedObject.id) {
-                        this.notifyEntityClick(pickedObject.id);
-                    }
-                }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-
-                // Initial camera position (Washington DC)
-                this.viewer.camera.setView({
-                    destination: Cesium.Cartesian3.fromDegrees(-77.0369, 38.9072, 10000000)
-                });
-
-                // Notify Swift that globe is ready
-                this.sendToSwift('globeReady', { ready: true });
-
-                console.log('Terra5 Globe initialized');
-            },
-
-            // Camera operations
-            flyTo(lat, lon, alt, duration = 2.0) {
-                this.viewer.camera.flyTo({
-                    destination: Cesium.Cartesian3.fromDegrees(lon, lat, alt),
-                    duration: duration,
-                    easingFunction: Cesium.EasingFunction.QUADRATIC_IN_OUT
-                });
-            },
-
-            notifyCameraChange() {
-                const cartographic = this.viewer.camera.positionCartographic;
-                this.sendToSwift('cameraChanged', {
-                    latitude: Cesium.Math.toDegrees(cartographic.latitude),
-                    longitude: Cesium.Math.toDegrees(cartographic.longitude),
-                    altitude: cartographic.height,
-                    heading: Cesium.Math.toDegrees(this.viewer.camera.heading)
-                });
-            },
-
-            notifyEntityClick(entity) {
-                if (entity && entity.properties) {
-                    const props = {};
-                    entity.properties.propertyNames.forEach(name => {
-                        props[name] = entity.properties[name].getValue();
-                    });
-                    this.sendToSwift('entityClicked', props);
-                }
-            },
-
-            // Data layer updates
-            updateFlights(flights) {
-                const ds = this.dataSources.flights;
-                ds.entities.removeAll();
-
-                flights.forEach(flight => {
-                    if (!flight.longitude || !flight.latitude) return;
-
-                    ds.entities.add({
-                        id: flight.icao24,
-                        position: Cesium.Cartesian3.fromDegrees(
-                            flight.longitude,
-                            flight.latitude,
-                            (flight.altitude || 0) + 100 // Slight elevation
-                        ),
-                        billboard: {
-                            image: this.createAircraftSVG(flight.heading || 0),
-                            width: 24,
-                            height: 24,
-                            color: Cesium.Color.fromCssColorString('#00d4aa')
-                        },
-                        label: {
-                            text: flight.callsign || flight.icao24,
-                            font: '11px Menlo, monospace',
-                            fillColor: Cesium.Color.fromCssColorString('#00d4aa'),
-                            outlineColor: Cesium.Color.BLACK,
-                            outlineWidth: 2,
-                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                            pixelOffset: new Cesium.Cartesian2(0, -20),
-                            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 500000)
-                        },
-                        properties: flight
-                    });
-                });
-
-                this.sendToSwift('dataUpdated', {
-                    layer: 'flights',
-                    count: flights.length
-                });
-            },
-
-            updateSatellites(satellites) {
-                const ds = this.dataSources.satellites;
-                ds.entities.removeAll();
-
-                satellites.forEach(sat => {
-                    if (!sat.longitude || !sat.latitude) return;
-
-                    ds.entities.add({
-                        id: `sat-${sat.noradId}`,
-                        position: Cesium.Cartesian3.fromDegrees(
-                            sat.longitude,
-                            sat.latitude,
-                            (sat.altitude || 400) * 1000 // km to meters
-                        ),
-                        point: {
-                            pixelSize: 6,
-                            color: Cesium.Color.fromCssColorString('#00ffaa'),
-                            outlineColor: Cesium.Color.WHITE,
-                            outlineWidth: 1
-                        },
-                        label: {
-                            text: sat.name,
-                            font: '10px Menlo, monospace',
-                            fillColor: Cesium.Color.fromCssColorString('#00ffaa'),
-                            pixelOffset: new Cesium.Cartesian2(10, 0),
-                            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 5000000)
-                        },
-                        properties: sat
-                    });
-                });
-
-                this.sendToSwift('dataUpdated', {
-                    layer: 'satellites',
-                    count: satellites.length
-                });
-            },
-
-            updateEarthquakes(earthquakes) {
-                const ds = this.dataSources.earthquakes;
-                ds.entities.removeAll();
-
-                earthquakes.forEach(eq => {
-                    if (!eq.longitude || !eq.latitude) return;
-
-                    const size = Math.max(10000, eq.magnitude * 20000);
-
-                    ds.entities.add({
-                        id: `eq-${eq.id}`,
-                        position: Cesium.Cartesian3.fromDegrees(eq.longitude, eq.latitude),
-                        ellipse: {
-                            semiMinorAxis: size,
-                            semiMajorAxis: size,
-                            material: Cesium.Color.fromCssColorString('#ff4444').withAlpha(0.5),
-                            outline: true,
-                            outlineColor: Cesium.Color.fromCssColorString('#ff4444'),
-                            outlineWidth: 2
-                        },
-                        label: {
-                            text: `M${eq.magnitude.toFixed(1)}`,
-                            font: '11px Menlo, monospace',
-                            fillColor: Cesium.Color.fromCssColorString('#ff4444'),
-                            pixelOffset: new Cesium.Cartesian2(0, -20),
-                            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 2000000)
-                        },
-                        properties: eq
-                    });
-                });
-
-                this.sendToSwift('dataUpdated', {
-                    layer: 'earthquakes',
-                    count: earthquakes.length
-                });
-            },
-
-            // Layer visibility
-            setLayerVisibility(layer, visible) {
-                if (this.dataSources[layer]) {
-                    this.dataSources[layer].show = visible;
-                }
-            },
-
-            // Visual modes
-            setVisualMode(mode) {
-                this.currentMode = mode;
-
-                // Remove existing post-process stages
-                this.viewer.scene.postProcessStages.removeAll();
-
-                switch(mode) {
-                    case 'crt':
-                        this.applyCRTEffect();
-                        break;
-                    case 'nvg':
-                        this.applyNVGEffect();
-                        break;
-                    case 'flir':
-                        this.applyFLIREffect();
-                        break;
-                    case 'noir':
-                        this.applyNoirEffect();
-                        break;
-                    case 'anime':
-                        this.applyAnimeEffect();
-                        break;
-                    case 'snow':
-                        this.applySnowEffect();
-                        break;
-                    default:
-                        // Normal mode - no post-processing
-                        break;
-                }
-            },
-
-            applyCRTEffect() {
-                const stage = new Cesium.PostProcessStage({
-                    fragmentShader: `
-                        uniform sampler2D colorTexture;
-                        in vec2 v_textureCoordinates;
-
-                        void main() {
-                            vec2 uv = v_textureCoordinates;
-                            vec4 color = texture(colorTexture, uv);
-
-                            // Scanlines
-                            float scanline = sin(uv.y * 800.0) * 0.04;
-                            color.rgb -= scanline;
-
-                            // Green tint
-                            color.r *= 0.85;
-                            color.b *= 0.85;
-                            color.g *= 1.1;
-
-                            // Vignette
-                            float vignette = 1.0 - length((uv - 0.5) * 1.3);
-                            color.rgb *= vignette;
-
-                            // Chromatic aberration
-                            float aberration = 0.001;
-                            color.r = texture(colorTexture, uv + vec2(aberration, 0.0)).r * 0.85;
-                            color.b = texture(colorTexture, uv - vec2(aberration, 0.0)).b * 0.85;
-
-                            out_FragColor = color;
-                        }
-                    `
-                });
-                this.viewer.scene.postProcessStages.add(stage);
-            },
-
-            applyNVGEffect() {
-                const stage = new Cesium.PostProcessStage({
-                    fragmentShader: `
-                        uniform sampler2D colorTexture;
-                        in vec2 v_textureCoordinates;
-
-                        void main() {
-                            vec4 color = texture(colorTexture, v_textureCoordinates);
-
-                            // Convert to luminance
-                            float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-
-                            // Green phosphor color
-                            vec3 nvg = vec3(0.0, luma * 1.3, luma * 0.1);
-
-                            // Add noise
-                            float noise = fract(sin(dot(v_textureCoordinates * 1000.0, vec2(12.9898, 78.233))) * 43758.5453);
-                            nvg += noise * 0.05;
-
-                            // Boost contrast
-                            nvg = pow(nvg, vec3(0.85));
-
-                            // Slight vignette
-                            float vignette = 1.0 - length((v_textureCoordinates - 0.5) * 0.8);
-                            nvg *= vignette;
-
-                            out_FragColor = vec4(nvg, 1.0);
-                        }
-                    `
-                });
-                this.viewer.scene.postProcessStages.add(stage);
-            },
-
-            applyFLIREffect() {
-                const stage = new Cesium.PostProcessStage({
-                    fragmentShader: `
-                        uniform sampler2D colorTexture;
-                        in vec2 v_textureCoordinates;
-
-                        void main() {
-                            vec4 color = texture(colorTexture, v_textureCoordinates);
-                            float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-
-                            // Thermal color gradient (black -> purple -> red -> yellow -> white)
-                            vec3 thermal;
-                            if (luma < 0.25) {
-                                thermal = mix(vec3(0.0, 0.0, 0.1), vec3(0.3, 0.0, 0.4), luma * 4.0);
-                            } else if (luma < 0.5) {
-                                thermal = mix(vec3(0.3, 0.0, 0.4), vec3(0.8, 0.2, 0.0), (luma - 0.25) * 4.0);
-                            } else if (luma < 0.75) {
-                                thermal = mix(vec3(0.8, 0.2, 0.0), vec3(1.0, 0.9, 0.0), (luma - 0.5) * 4.0);
-                            } else {
-                                thermal = mix(vec3(1.0, 0.9, 0.0), vec3(1.0, 1.0, 1.0), (luma - 0.75) * 4.0);
-                            }
-
-                            out_FragColor = vec4(thermal, 1.0);
-                        }
-                    `
-                });
-                this.viewer.scene.postProcessStages.add(stage);
-            },
-
-            applyNoirEffect() {
-                const stage = new Cesium.PostProcessStage({
-                    fragmentShader: `
-                        uniform sampler2D colorTexture;
-                        in vec2 v_textureCoordinates;
-
-                        void main() {
-                            vec4 color = texture(colorTexture, v_textureCoordinates);
-                            float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-
-                            // High contrast B&W
-                            luma = pow(luma, 0.7);
-                            luma = smoothstep(0.1, 0.9, luma);
-
-                            // Slight sepia tint
-                            vec3 noir = vec3(luma * 1.0, luma * 0.95, luma * 0.9);
-
-                            // Vignette
-                            float vignette = 1.0 - length((v_textureCoordinates - 0.5) * 1.2);
-                            noir *= vignette;
-
-                            out_FragColor = vec4(noir, 1.0);
-                        }
-                    `
-                });
-                this.viewer.scene.postProcessStages.add(stage);
-            },
-
-            applyAnimeEffect() {
-                const stage = new Cesium.PostProcessStage({
-                    fragmentShader: `
-                        uniform sampler2D colorTexture;
-                        in vec2 v_textureCoordinates;
-
-                        void main() {
-                            vec4 color = texture(colorTexture, v_textureCoordinates);
-
-                            // Posterize colors
-                            float levels = 6.0;
-                            color.rgb = floor(color.rgb * levels) / levels;
-
-                            // Boost saturation
-                            float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-                            color.rgb = mix(vec3(luma), color.rgb, 1.5);
-
-                            // Edge detection for outlines
-                            vec2 texelSize = 1.0 / vec2(1920.0, 1080.0);
-                            float edge = 0.0;
-                            for (int x = -1; x <= 1; x++) {
-                                for (int y = -1; y <= 1; y++) {
-                                    if (x == 0 && y == 0) continue;
-                                    vec4 neighbor = texture(colorTexture, v_textureCoordinates + vec2(float(x), float(y)) * texelSize * 2.0);
-                                    edge += length(color.rgb - neighbor.rgb);
-                                }
-                            }
-                            edge = edge > 0.3 ? 1.0 : 0.0;
-
-                            // Apply dark outline
-                            color.rgb = mix(color.rgb, vec3(0.0), edge * 0.5);
-
-                            out_FragColor = color;
-                        }
-                    `
-                });
-                this.viewer.scene.postProcessStages.add(stage);
-            },
-
-            applySnowEffect() {
-                const stage = new Cesium.PostProcessStage({
-                    fragmentShader: `
-                        uniform sampler2D colorTexture;
-                        in vec2 v_textureCoordinates;
-
-                        void main() {
-                            vec4 color = texture(colorTexture, v_textureCoordinates);
-
-                            // Desaturate
-                            float luma = dot(color.rgb, vec3(0.299, 0.587, 0.114));
-                            color.rgb = mix(color.rgb, vec3(luma), 0.7);
-
-                            // Blue tint
-                            color.r *= 0.85;
-                            color.g *= 0.92;
-                            color.b *= 1.15;
-
-                            // Brighten
-                            color.rgb = pow(color.rgb, vec3(0.9));
-
-                            // Add subtle noise (snow static)
-                            float noise = fract(sin(dot(v_textureCoordinates * 500.0, vec2(12.9898, 78.233))) * 43758.5453);
-                            color.rgb += noise * 0.02;
-
-                            out_FragColor = color;
-                        }
-                    `
-                });
-                this.viewer.scene.postProcessStages.add(stage);
-            },
-
-            // Create aircraft icon SVG
-            createAircraftSVG(heading) {
-                const canvas = document.createElement('canvas');
-                canvas.width = 32;
-                canvas.height = 32;
-                const ctx = canvas.getContext('2d');
-
-                ctx.translate(16, 16);
-                ctx.rotate((heading || 0) * Math.PI / 180);
-                ctx.translate(-16, -16);
-
-                ctx.fillStyle = '#00d4aa';
-                ctx.beginPath();
-                ctx.moveTo(16, 4);
-                ctx.lineTo(24, 28);
-                ctx.lineTo(16, 22);
-                ctx.lineTo(8, 28);
-                ctx.closePath();
-                ctx.fill();
-
-                return canvas.toDataURL();
-            },
-
-            // Bridge to Swift
-            sendToSwift(handler, data) {
-                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers[handler]) {
-                    window.webkit.messageHandlers[handler].postMessage(data);
-                }
-            }
-        };
-
-        // Initialize when DOM is ready
-        document.addEventListener('DOMContentLoaded', () => {
-            Terra5.init();
+
+<div id="loading">
+  <div class="load-logo">WORLDVIEW</div>
+  <div class="load-sub">TERRA5 // ULTIMATE TACTICAL INTELLIGENCE PLATFORM</div>
+  <div class="load-bar-wrap"><div class="load-bar" id="loadBar"></div></div>
+  <div class="load-status" id="loadStatus">BOOTING...</div>
+  <div class="load-items">
+    <span id="li-globe">⬡ GLOBE</span>
+    <span id="li-borders">⬡ BORDERS</span>
+    <span id="li-flights">⬡ FLIGHTS</span>
+    <span id="li-eq">⬡ SEISMIC</span>
+    <span id="li-sat">⬡ SATELLITES</span>
+    <span id="li-fires">⬡ FIRES</span>
+    <span id="li-vol">⬡ VOLCANOES</span>
+  </div>
+</div>
+
+<div id="scanlines"></div>
+<div class="corner tl"></div><div class="corner tr"></div>
+<div class="corner bl"></div><div class="corner br"></div>
+<div id="ticker"></div>
+<div id="cesiumContainer"></div>
+
+<!-- Info Panel -->
+<div id="info-panel">
+  <div class="ip-header">
+    <div class="ip-left">
+      <span class="ip-icon" id="ip-icon">⏳</span>
+      <div><div class="ip-name" id="ip-name">LOADING</div><div class="ip-badge" id="ip-badge">–</div></div>
+    </div>
+    <span class="ip-close" onclick="hideInfo()">✕</span>
+  </div>
+  <div class="ip-location" id="ip-location">Locating...</div>
+  <div class="ip-grid ip-grid-3" id="ip-grid"></div>
+</div>
+
+<!-- Header -->
+<div id="header">
+  <div class="logo">TERRA5<span>WORLDVIEW // ULTIMATE TACTICAL GEOSPATIAL INTELLIGENCE</span></div>
+  <div id="search-wrap">
+    <input id="search-input" type="text" placeholder="FLY TO CITY OR COORDS..." onkeydown="if(event.key==='Enter')doSearch()">
+    <button id="search-btn" onclick="doSearch()">GO</button>
+  </div>
+  <div id="clock"><div id="clockTime">--:--:--</div><div class="date" id="clockDate">---- -- --</div></div>
+</div>
+
+<!-- Left Panel -->
+<div id="left-panel">
+  <div class="panel-box">
+    <div class="panel-title">DATA LAYERS</div>
+    <div class="layer-toggle" onclick="toggleLayer('flights')">
+      <div class="layer-label"><div class="layer-dot dot-flights"></div>LIVE FLIGHTS</div>
+      <div class="toggle-switch on" id="toggle-flights"></div>
+    </div>
+    <div class="layer-toggle" onclick="toggleLayer('satellites')">
+      <div class="layer-label"><div class="layer-dot dot-satellites"></div>SATELLITES</div>
+      <div class="toggle-switch on" id="toggle-satellites"></div>
+    </div>
+    <div class="layer-toggle" onclick="toggleLayer('earthquakes')">
+      <div class="layer-label"><div class="layer-dot dot-earthquakes"></div>SEISMIC</div>
+      <div class="toggle-switch on" id="toggle-earthquakes"></div>
+    </div>
+    <div class="layer-toggle" onclick="toggleLayer('volcanoes')">
+      <div class="layer-label"><div class="layer-dot dot-volcanoes"></div>VOLCANOES</div>
+      <div class="toggle-switch on" id="toggle-volcanoes"></div>
+    </div>
+    <div class="layer-toggle" onclick="toggleLayer('fires')">
+      <div class="layer-label"><div class="layer-dot dot-fires"></div>WILDFIRES</div>
+      <div class="toggle-switch on" id="toggle-fires"></div>
+    </div>
+    <div class="layer-toggle" onclick="toggleLayer('ships')">
+      <div class="layer-label"><div class="layer-dot dot-ships"></div>SHIPS (DEMO)</div>
+      <div class="toggle-switch on" id="toggle-ships"></div>
+    </div>
+    <div class="layer-toggle" onclick="toggleBorders()">
+      <div class="layer-label"><div class="layer-dot dot-borders"></div>BORDERS</div>
+      <div class="toggle-switch on" id="toggle-borders"></div>
+    </div>
+    <div class="layer-toggle" onclick="toggleTrails()">
+      <div class="layer-label"><div class="layer-dot dot-trails"></div>FLIGHT TRAILS<span id="trail-count"></span></div>
+      <div class="toggle-switch" id="toggle-trails"></div>
+    </div>
+  </div>
+
+  <div class="panel-box">
+    <div class="panel-title">LIVE STATISTICS</div>
+    <div class="stat-row"><span class="stat-label">✈ FLIGHTS</span><span class="stat-value" id="stat-flights">–</span></div>
+    <div class="stat-row"><span class="stat-label">🛰 SATELLITES</span><span class="stat-value" id="stat-satellites">–</span></div>
+    <div class="stat-row"><span class="stat-label">🌋 SEISMIC</span><span class="stat-value" id="stat-earthquakes">–</span></div>
+    <div class="stat-row"><span class="stat-label">🌊 SHIPS</span><span class="stat-value" id="stat-ships">–</span></div>
+    <div class="stat-row"><span class="stat-label">🔥 WILDFIRES</span><span class="stat-value" id="stat-fires">–</span></div>
+    <div class="stat-row"><span class="stat-label">🌋 VOLCANOES</span><span class="stat-value" id="stat-volcanoes">–</span></div>
+    <div class="stat-row"><span class="stat-label">🕐 REFRESH</span><span class="stat-value" id="stat-refresh">–</span></div>
+  </div>
+
+  <div class="panel-box">
+    <div class="panel-title">VISUAL MODE</div>
+    <div class="mode-grid">
+      <div class="mode-btn active" onclick="setMode('normal')" id="mode-normal">NORMAL</div>
+      <div class="mode-btn" onclick="setMode('nvg')" id="mode-nvg">NVG</div>
+      <div class="mode-btn" onclick="setMode('flir')" id="mode-flir">FLIR</div>
+      <div class="mode-btn" onclick="setMode('crt')" id="mode-crt">CRT</div>
+      <div class="mode-btn" onclick="setMode('noir')" id="mode-noir">NOIR</div>
+      <div class="mode-btn" onclick="setMode('snow')" id="mode-snow">SNOW</div>
+    </div>
+  </div>
+
+  <div class="panel-box">
+    <div class="panel-title">QUICK FLY-TO</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;">
+      <div class="mode-btn" onclick="flyTo(40.71,-74,4000000)">NEW YORK</div>
+      <div class="mode-btn" onclick="flyTo(51.5,-0.12,3000000)">LONDON</div>
+      <div class="mode-btn" onclick="flyTo(35.68,139.69,3000000)">TOKYO</div>
+      <div class="mode-btn" onclick="flyTo(28.61,77.2,3000000)">NEW DELHI</div>
+      <div class="mode-btn" onclick="flyTo(-33.86,151.2,3000000)">SYDNEY</div>
+      <div class="mode-btn" onclick="flyTo(48.85,2.35,3000000)">PARIS</div>
+      <div class="mode-btn" onclick="flyTo(55.75,37.61,3000000)">MOSCOW</div>
+      <div class="mode-btn" onclick="flyTo(31.22,121.46,3000000)">SHANGHAI</div>
+      <div class="mode-btn" onclick="flyTo(13.08,80.27,3000000)">CHENNAI</div>
+      <div class="mode-btn" onclick="flyTo(19.07,72.87,3000000)">MUMBAI</div>
+      <div class="mode-btn" onclick="flyTo(0,0,18000000)">GLOBAL</div>
+      <div class="mode-btn" onclick="flyTo(90,0,18000000)">ARCTIC</div>
+    </div>
+  </div>
+</div>
+
+<!-- Right Panel -->
+<div id="right-panel">
+  <div class="panel-box">
+    <div class="panel-title">RECENT SEISMIC</div>
+    <div class="feed-list" id="eq-feed"></div>
+  </div>
+  <div class="panel-box">
+    <div class="panel-title">SATELLITES</div>
+    <div class="feed-list" id="sat-feed"></div>
+  </div>
+  <div class="panel-box">
+    <div class="panel-title">ACTIVE FIRES</div>
+    <div class="feed-list" id="fire-feed"></div>
+  </div>
+  <div class="panel-box">
+    <div class="panel-title">VOLCANOES</div>
+    <div class="feed-list" id="vol-feed"></div>
+  </div>
+</div>
+
+<!-- Status bar -->
+<div id="statusbar">
+  <span><span class="sdot g"></span>OPENSKY</span>
+  <span><span class="sdot r"></span>USGS</span>
+  <span><span class="sdot b"></span>WHERETHEISS</span>
+  <span><span class="sdot y"></span>NASA FIRMS</span>
+  <span style="margin-left:auto" id="status-coords">LAT:– LON:–</span>
+  <span id="status-hover" style="color:var(--green);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+</div>
+
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
+<script>
+// ── UTILITIES ──
+const $=id=>document.getElementById(id);
+const loadBar=$('loadBar'),loadStatus=$('loadStatus');
+function setLoad(p,m){loadBar.style.width=p+'%';loadStatus.textContent=m;}
+function markDone(id){const el=$(id);if(el){el.classList.add('done');el.textContent=el.textContent.replace('⬡','✓');}}
+
+function updateClock(){
+  const n=new Date();
+  $('clockTime').textContent=n.toUTCString().slice(17,25)+' UTC';
+  $('clockDate').textContent=n.toISOString().slice(0,10);
+}
+setInterval(updateClock,1000);updateClock();
+
+async function reverseGeocode(lat,lon){
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+    const g=await r.json();
+    const c=g.address?.country||'';
+    const s=g.address?.state||g.address?.region||'';
+    if(!c)return'International Waters / Ocean';
+    return s?`${s}, ${c}`:c;
+  }catch{return`${parseFloat(lat).toFixed(2)}°, ${parseFloat(lon).toFixed(2)}°`;}
+}
+
+function showTicker(msg){
+  const t=$('ticker');t.textContent='⚠ '+msg;t.style.display='block';
+  setTimeout(()=>t.style.display='none',8000);
+}
+
+// ── INFO PANEL ──
+function showInfo({icon,name,badge,location,stats,gridClass}){
+  $('ip-icon').textContent=icon;$('ip-name').textContent=name;
+  $('ip-badge').textContent=badge;$('ip-location').textContent='📍 '+location;
+  const g=$('ip-grid');g.className='ip-grid '+(gridClass||'ip-grid-3');
+  g.innerHTML=stats.map(s=>`<div class="ip-stat ${s.c||''}"><div class="val">${s.v}</div><div class="lbl">${s.l}</div></div>`).join('');
+  $('info-panel').classList.add('visible');
+}
+function hideInfo(){$('info-panel').classList.remove('visible');}
+
+// ── LAYER TOGGLES ──
+const layerVis={flights:true,satellites:true,earthquakes:true,volcanoes:true,fires:true,ships:true};
+function toggleLayer(n){
+  layerVis[n]=!layerVis[n];
+  $('toggle-'+n).classList.toggle('on',layerVis[n]);
+  if(T.ds[n])T.ds[n].show=layerVis[n];
+}
+let bordersOn=true;
+function toggleBorders(){
+  bordersOn=!bordersOn;
+  $('toggle-borders').classList.toggle('on',bordersOn);
+  if(T.countryDS)T.countryDS.show=bordersOn;
+}
+let trailsOn=false;
+function toggleTrails(){
+  trailsOn=!trailsOn;
+  $('toggle-trails').classList.toggle('on',trailsOn);
+  if(!trailsOn){T.clearTrails();}
+  $('trail-count').textContent=trailsOn?' ON':'';
+}
+function setMode(m){
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+  $('mode-'+m).classList.add('active');
+  T.setVisualMode(m);
+}
+function flyTo(lat,lon,alt=3000000,dur=2){
+  T.viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(lon,lat,alt),duration:dur});
+}
+
+// ── SEARCH ──
+async function doSearch(){
+  const q=$('search-input').value.trim();
+  if(!q)return;
+  // Check if coords like "28.6, 77.2"
+  const coordMatch=q.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
+  if(coordMatch){
+    flyTo(parseFloat(coordMatch[1]),parseFloat(coordMatch[2]),500000);
+    return;
+  }
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`);
+    const d=await r.json();
+    if(d&&d[0]){flyTo(parseFloat(d[0].lat),parseFloat(d[0].lon),300000);}
+    else{setLoad(100,'LOCATION NOT FOUND');}
+  }catch(e){console.warn('Search failed',e);}
+  $('search-input').value='';
+}
+
+// ── ICONS ──
+function mkPlane(heading){
+  const c=document.createElement('canvas');c.width=32;c.height=32;
+  const ctx=c.getContext('2d');
+  ctx.translate(16,16);ctx.rotate((heading||0)*Math.PI/180);ctx.translate(-16,-16);
+  ctx.fillStyle='#00d4aa';
+  ctx.beginPath();ctx.moveTo(16,4);ctx.lineTo(24,28);ctx.lineTo(16,22);ctx.lineTo(8,28);ctx.closePath();ctx.fill();
+  return c.toDataURL();
+}
+function mkSat(){
+  const c=document.createElement('canvas');c.width=22;c.height=22;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='rgba(0,170,255,0.55)';ctx.fillRect(1,9,6,4);ctx.fillRect(15,9,6,4);
+  ctx.fillStyle='#00aaff';ctx.fillRect(8,7,6,8);
+  ctx.strokeStyle='rgba(0,170,255,0.7)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(11,7);ctx.lineTo(11,2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(9,2);ctx.lineTo(13,2);ctx.stroke();
+  return c.toDataURL();
+}
+function mkShip(){
+  const c=document.createElement('canvas');c.width=24;c.height=24;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#ffcc00';
+  ctx.beginPath();ctx.moveTo(12,2);ctx.lineTo(20,18);ctx.lineTo(12,15);ctx.lineTo(4,18);ctx.closePath();ctx.fill();
+  return c.toDataURL();
+}
+function mkFire(){
+  const c=document.createElement('canvas');c.width=20;c.height=20;
+  const ctx=c.getContext('2d');
+  ctx.font='14px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('🔥',10,10);
+  return c.toDataURL();
+}
+function mkVolcano(){
+  const c=document.createElement('canvas');c.width=24;c.height=24;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#ff8800';
+  ctx.beginPath();ctx.moveTo(12,2);ctx.lineTo(22,22);ctx.lineTo(2,22);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#ff4400';
+  ctx.beginPath();ctx.moveTo(9,10);ctx.lineTo(15,10);ctx.lineTo(12,2);ctx.closePath();ctx.fill();
+  return c.toDataURL();
+}
+
+// ── VOLCANOES DATA (static known active volcanoes) ──
+const VOLCANOES=[
+  {name:'Kilauea',lat:19.421,lon:-155.287,country:'Hawaii, USA',status:'Erupting',elevation:1222},
+  {name:'Etna',lat:37.748,lon:15.0,country:'Sicily, Italy',status:'Active',elevation:3329},
+  {name:'Stromboli',lat:38.789,lon:15.213,country:'Italy',status:'Erupting',elevation:924},
+  {name:'Sakurajima',lat:31.585,lon:130.659,country:'Japan',status:'Active',elevation:1117},
+  {name:'Merapi',lat:-7.541,lon:110.446,country:'Indonesia',status:'Active',elevation:2930},
+  {name:'Semeru',lat:-8.108,lon:112.922,country:'Indonesia',status:'Erupting',elevation:3676},
+  {name:'Popocatepetl',lat:19.023,lon:-98.622,country:'Mexico',status:'Active',elevation:5426},
+  {name:'Piton de la Fournaise',lat:-21.244,lon:55.708,country:'Reunion Island',status:'Active',elevation:2632},
+  {name:'Nyiragongo',lat:-1.52,lon:29.25,country:'DR Congo',status:'Active',elevation:3470},
+  {name:'Villarrica',lat:-39.422,lon:-71.937,country:'Chile',status:'Active',elevation:2847},
+  {name:'Erebus',lat:-77.53,lon:167.17,country:'Antarctica',status:'Active',elevation:3794},
+  {name:'Krakatau',lat:-6.102,lon:105.423,country:'Indonesia',status:'Active',elevation:813},
+  {name:'Santorini',lat:36.404,lon:25.396,country:'Greece',status:'Restless',elevation:329},
+  {name:'Yellowstone',lat:44.428,lon:-110.588,country:'Wyoming, USA',status:'Restless',elevation:2805},
+  {name:'Taal',lat:14.002,lon:120.993,country:'Philippines',status:'Active',elevation:311},
+];
+
+// ── DEMO SHIPS (realistic positions in major shipping lanes) ──
+function generateShips(){
+  const lanes=[
+    // English Channel
+    {lat:51.0,lon:1.5,name:'MSC AURORA'},{lat:51.2,lon:2.1,name:'MAERSK ESSEX'},
+    // Singapore Strait
+    {lat:1.2,lon:104.0,name:'COSCO PACIFIC'},{lat:1.1,lon:103.5,name:'EVER GIVEN II'},
+    // Suez approach
+    {lat:30.5,lon:32.3,name:'NYK OLYMPUS'},{lat:29.9,lon:32.5,name:'CMA CGM MARCO POLO'},
+    // Gulf of Aden
+    {lat:12.5,lon:45.0,name:'HMM ALGECIRAS'},{lat:11.8,lon:44.2,name:'MSC Isabella'},
+    // Pacific
+    {lat:35.0,lon:155.0,name:'ONE INNOVATION'},{lat:30.0,lon:160.0,name:'HAPAG LLOYD BERLIN'},
+    // Atlantic
+    {lat:40.0,lon:-40.0,name:'MSC OSCAR'},{lat:45.0,lon:-35.0,name:'MAERSK MC-KINNEY'},
+    // Indian Ocean
+    {lat:-5.0,lon:65.0,name:'COSCO SHIPPING'},{lat:0.0,lon:75.0,name:'EVERGREEN EVER ACE'},
+    // Mediterranean
+    {lat:38.0,lon:18.0,name:'MSC LORETO'},{lat:36.5,lon:10.0,name:'CMA CGM TITUS'},
+    // Caribbean
+    {lat:18.0,lon:-70.0,name:'MSC DANIELA'},{lat:15.0,lon:-75.0,name:'MAERSK TITAN'},
+    // Bay of Bengal
+    {lat:13.0,lon:83.0,name:'INS VIKRANT'},{lat:15.0,lon:80.5,name:'CONTAINER SHIP 420'},
+  ];
+  return lanes.map((s,i)=>({...s,
+    mmsi:String(200000000+i),flag:['🇺🇸','🇬🇧','🇩🇪','🇨🇳','🇯🇵','🇰🇷','🇸🇬','🇳🇱','🇩🇰'][i%9],
+    type:['CONTAINER','TANKER','BULK','CARGO'][i%4],
+    speed:Math.round(12+Math.random()*8),
+    heading:Math.round(Math.random()*360),
+    length:Math.round(200+Math.random()*200)
+  }));
+}
+
+// ── TRAIL SYSTEM ──
+const flightTrails={};
+
+// ── TERRA5 CORE ──
+const T={
+  viewer:null,ds:{},countryDS:null,
+  currentMode:'normal',satData:[],shipData:[],fireData:[],
+
+  init(){
+    setLoad(8,'LOADING CESIUM ENGINE...');
+    this.viewer=new Cesium.Viewer('cesiumContainer',{
+      imageryProvider:new Cesium.ArcGisMapServerImageryProvider({
+        url:'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+      }),
+      baseLayerPicker:false,geocoder:false,homeButton:false,
+      sceneModePicker:false,navigationHelpButton:false,
+      animation:false,timeline:false,fullscreenButton:false,
+      vrButton:false,selectionIndicator:false,infoBox:false,
+      shouldAnimate:true,skyBox:false,
+      skyAtmosphere:new Cesium.SkyAtmosphere()
+    });
+
+    // OSM overlay for roads/labels
+    const osmLayer=this.viewer.imageryLayers.addImageryProvider(
+      new Cesium.UrlTemplateImageryProvider({url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',credit:'© OSM',maximumLevel:19})
+    );
+    osmLayer.alpha=0.2;
+
+    const sc=this.viewer.scene;
+    sc.backgroundColor=Cesium.Color.fromCssColorString('#060a0f');
+    sc.globe.baseColor=Cesium.Color.fromCssColorString('#060a0f');
+    sc.globe.enableLighting=false;
+    sc.fog.enabled=true;sc.fog.density=0.00006;
+    sc.globe.depthTestAgainstTerrain=false;
+    if(sc.skyAtmosphere){sc.skyAtmosphere.brightnessShift=-0.15;sc.skyAtmosphere.saturationShift=-0.2;}
+
+    ['flights','satellites','earthquakes','volcanoes','fires','ships','trails'].forEach(n=>{
+      this.ds[n]=new Cesium.CustomDataSource(n);
+      this.viewer.dataSources.add(this.ds[n]);
+    });
+
+    markDone('li-globe');
+    setLoad(15,'GLOBE READY — LOADING BORDERS...');
+
+    this.loadCountryBorders();
+
+    // Camera
+    this.viewer.camera.changed.addEventListener(()=>{
+      const c=this.viewer.camera.positionCartographic;
+      $('status-coords').textContent=`LAT:${Cesium.Math.toDegrees(c.latitude).toFixed(2)} LON:${Cesium.Math.toDegrees(c.longitude).toFixed(2)}`;
+    });
+
+    // Hover
+    const hh=new Cesium.ScreenSpaceEventHandler(sc.canvas);
+    hh.setInputAction(mv=>{
+      const p=sc.pick(mv.endPosition);
+      $('status-hover').textContent=(Cesium.defined(p)&&p.id&&p.id._name)?'► '+p.id._name:'';
+    },Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+    // Click
+    this.viewer.screenSpaceEventHandler.setInputAction(async click=>{
+      const p=sc.pick(click.position);
+      if(!Cesium.defined(p)||!p.id)return;
+      const e=p.id,pr=e.properties;
+      if(!pr||!pr.propertyNames)return;
+      const pn=pr.propertyNames;
+
+      const pos=e.position?e.position.getValue(Cesium.JulianDate.now()):null;
+      let lat=null,lon=null;
+      if(pos){const ca=Cesium.Cartographic.fromCartesian(pos);lat=Cesium.Math.toDegrees(ca.latitude).toFixed(4);lon=Cesium.Math.toDegrees(ca.longitude).toFixed(4);}
+
+      const type=pn.includes('icao24')?'flight':pn.includes('noradId')?'satellite':pn.includes('magnitude')?'earthquake':pn.includes('mmsi')?'ship':pn.includes('elevation')?'volcano':pn.includes('frp')?'fire':null;
+      if(!type)return;
+
+      showInfo({icon:'⏳',name:'LOCATING...',badge:type.toUpperCase(),location:'Reverse geocoding...',stats:[],gridClass:'ip-grid-2'});
+      const loc=(lat&&lon)?await reverseGeocode(lat,lon):'Unknown';
+
+      if(type==='flight'){
+        const cs=pr.callsign?.getValue()||'';const ic=pr.icao24?.getValue()||'';
+        const al=Math.round(pr.altitude?.getValue()||0);
+        const sp=Math.round((pr.velocity?.getValue()||0)*3.6);
+        const hd=Math.round(pr.heading?.getValue()||0);
+        showInfo({icon:'✈',name:cs||ic,badge:'AIRCRAFT',location:loc,gridClass:'ip-grid-3',
+          stats:[{v:al.toLocaleString()+'m',l:'ALTITUDE'},{v:sp+' km/h',l:'SPEED',c:'yellow'},{v:hd+'°',l:'HEADING'},
+                 {v:ic.toUpperCase(),l:'ICAO24',c:'blue'},{v:lat+'°',l:'LAT'},{v:lon+'°',l:'LON'}]});
+      } else if(type==='satellite'){
+        const nm=pr.name?.getValue()||'UNKNOWN';const nr=pr.noradId?.getValue()||'–';
+        const al=pr.alt?.getValue()||400;
+        const ot=al>10000?'GEO/MEO':al>500?'LEO-HIGH':'LEO';
+        showInfo({icon:'🛰',name:nm,badge:'SATELLITE',location:loc,gridClass:'ip-grid-3',
+          stats:[{v:al+'km',l:'ALTITUDE',c:'blue'},{v:ot,l:'ORBIT',c:'cyan'},{v:nr,l:'NORAD',c:'yellow'},
+                 {v:lat+'°',l:'LAT'},{v:lon+'°',l:'LON'},{v:'ACTIVE',l:'STATUS'}]});
+      } else if(type==='earthquake'){
+        const mg=(pr.magnitude?.getValue()||0).toFixed(1);
+        const pl=pr.place?.getValue()||'Unknown';
+        const dp=(pr.depth?.getValue()||0).toFixed(1);
+        const tm=pr.time?.getValue();
+        const ag=tm?Math.round((Date.now()-tm)/60000):null;
+        const ags=ag!==null?(ag<60?ag+'m ago':Math.round(ag/60)+'h ago'):'–';
+        const mc=mg>=6?'red':mg>=5?'orange':'yellow';
+        const dt=dp<70?'SHALLOW':dp<300?'INTERMEDIATE':'DEEP';
+        showInfo({icon:'🌋',name:'M'+mg+' EARTHQUAKE',badge:'SEISMIC EVENT',location:pl,gridClass:'ip-grid-3',
+          stats:[{v:'M'+mg,l:'MAGNITUDE',c:mc},{v:dp+'km',l:'DEPTH',c:'orange'},{v:ags,l:'TIME',c:'yellow'},
+                 {v:dt,l:'DEPTH TYPE',c:'blue'},{v:lat+'°',l:'LAT'},{v:lon+'°',l:'LON'}]});
+        if(mg>=6)showTicker(`MAJOR EARTHQUAKE M${mg} — ${pl}`);
+      } else if(type==='ship'){
+        const nm=pr.name?.getValue()||'UNKNOWN';const fl=pr.flag?.getValue()||'';
+        const tp=pr.type?.getValue()||'VESSEL';const sp=pr.speed?.getValue()||0;
+        const hd=pr.heading?.getValue()||0;const ln=pr.length?.getValue()||0;
+        showInfo({icon:'🚢',name:nm,badge:'VESSEL — '+tp,location:loc,gridClass:'ip-grid-3',
+          stats:[{v:fl+' '+tp,l:'TYPE',c:'yellow'},{v:sp+' kn',l:'SPEED',c:'cyan'},{v:hd+'°',l:'HEADING'},
+                 {v:ln+'m',l:'LENGTH',c:'blue'},{v:lat+'°',l:'LAT'},{v:lon+'°',l:'LON'}]});
+      } else if(type==='volcano'){
+        const nm=pr.name?.getValue()||'UNKNOWN';
+        const st=pr.status?.getValue()||'UNKNOWN';
+        const el=pr.elevation?.getValue()||0;
+        const co=pr.country?.getValue()||'';
+        showInfo({icon:'🌋',name:nm,badge:'VOLCANO',location:co,gridClass:'ip-grid-2',
+          stats:[{v:st,l:'STATUS',c:st==='Erupting'?'red':'orange'},{v:el+'m',l:'ELEVATION',c:'yellow'},
+                 {v:lat+'°',l:'LAT'},{v:lon+'°',l:'LON'}]});
+        if(st==='Erupting')showTicker(`ACTIVE ERUPTION: ${nm}, ${co}`);
+      } else if(type==='fire'){
+        const nm=pr.name?.getValue()||'Wildfire';
+        const fr=(pr.frp?.getValue()||0).toFixed(0);
+        const br=(pr.brightness?.getValue()||0).toFixed(0);
+        showInfo({icon:'🔥',name:nm,badge:'WILDFIRE / HOTSPOT',location:loc,gridClass:'ip-grid-2',
+          stats:[{v:fr+' MW',l:'FIRE POWER',c:'red'},{v:br+'K',l:'BRIGHTNESS',c:'orange'},
+                 {v:lat+'°',l:'LAT'},{v:lon+'°',l:'LON'}]});
+      }
+    },Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+    this.viewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(0,20,17000000)});
+    console.log('Terra5 Globe initialized');
+
+    // Load everything
+    this.fetchEarthquakes();
+    this.loadVolcanoes();
+    this.loadShips();
+    setTimeout(()=>this.fetchFlights(),300);
+    setTimeout(()=>this.fetchSatellites(),700);
+    setTimeout(()=>this.fetchFires(),1200);
+
+    setInterval(()=>this.fetchFlights(),60000);
+    setInterval(()=>this.fetchEarthquakes(),120000);
+    setInterval(()=>this.fetchSatellites(),300000);
+    setInterval(()=>this.fetchFires(),600000);
+  },
+
+  // ── BORDERS ──
+  async loadCountryBorders(){
+    try{
+      const res=await fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_boundary_lines_land.geojson');
+      const gj=await res.json();
+      const ds=new Cesium.CustomDataSource('borders');
+      gj.features.forEach(f=>{
+        const geom=f.geometry;if(!geom)return;
+        const lines=geom.type==='MultiLineString'?geom.coordinates:[geom.coordinates];
+        lines.forEach(line=>{
+          if(!line||line.length<2)return;
+          const pos=line.filter(p=>p&&isFinite(p[0])&&isFinite(p[1])).map(p=>Cesium.Cartesian3.fromDegrees(p[0],p[1]));
+          if(pos.length>=2)ds.entities.add({polyline:{positions:pos,width:1.2,material:new Cesium.ColorMaterialProperty(Cesium.Color.fromCssColorString('#00ff9d').withAlpha(0.4)),arcType:Cesium.ArcType.GEODESIC}});
         });
-    </script>
+      });
+      await this.viewer.dataSources.add(ds);
+      this.countryDS=ds;
+      markDone('li-borders');
+      setLoad(25,'BORDERS LOADED — FETCHING LIVE DATA...');
+    }catch(e){console.warn('Borders failed:',e.message);setLoad(25,'BORDERS FAILED — CONTINUING...');}
+  },
+
+  // ── FLIGHTS ──
+  async fetchFlights(){
+    $('stat-refresh').textContent=new Date().toUTCString().slice(17,25);
+    try{
+      const res=await fetch('https://opensky-network.org/api/states/all');
+      if(!res.ok)throw new Error(res.status);
+      const data=await res.json();
+      const flights=(data.states||[]).filter(s=>s[5]&&s[6]).slice(0,800).map(s=>({
+        icao24:s[0],callsign:(s[1]||'').trim(),longitude:s[5],latitude:s[6],
+        altitude:s[7]||0,heading:s[10]||0,velocity:s[9]||0
+      }));
+      // Update trails
+      if(trailsOn){
+        flights.forEach(f=>{
+          if(!flightTrails[f.icao24])flightTrails[f.icao24]=[];
+          flightTrails[f.icao24].push([f.longitude,f.latitude,f.altitude||0]);
+          if(flightTrails[f.icao24].length>8)flightTrails[f.icao24].shift();
+        });
+        this.drawTrails();
+      }
+      this.updateFlights(flights);
+      markDone('li-flights');
+    }catch(e){
+      console.warn('Flights failed:',e.message);
+      this.checkDone();
+    }
+  },
+
+  // ── EARTHQUAKES ──
+  async fetchEarthquakes(){
+    try{
+      const res=await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson');
+      const data=await res.json();
+      const quakes=(data.features||[]).map(f=>({
+        id:f.id,magnitude:f.properties.mag,place:f.properties.place,
+        time:f.properties.time,longitude:f.geometry.coordinates[0],
+        latitude:f.geometry.coordinates[1],depth:f.geometry.coordinates[2]
+      }));
+      this.updateEarthquakes(quakes);
+      this.renderEqFeed(quakes);
+      // Alert for large quakes
+      quakes.filter(q=>q.magnitude>=6.0).forEach(q=>{
+        const ago=Math.round((Date.now()-q.time)/60000);
+        if(ago<30)showTicker(`⚠ MAJOR QUAKE M${q.magnitude.toFixed(1)} — ${q.place}`);
+      });
+      markDone('li-eq');
+    }catch(e){console.warn('Earthquakes failed:',e.message);}
+  },
+
+  // ── SATELLITES ──
+  async fetchSatellites(){
+    try{
+      const issRes=await fetch('https://api.wheretheiss.at/v1/satellites/25544');
+      const iss=await issRes.json();
+      const now=Date.now()/1000;
+      const sats=[{noradId:'25544',name:'ISS (ZARYA)',lat:iss.latitude,lon:iss.longitude,alt:Math.round(iss.altitude)}];
+      [{name:'HUBBLE SPACE TELESCOPE',period:95,inc:28.5,raan:0,alt:547},
+       {name:'NOAA-19',period:102,inc:99,raan:60,alt:870},
+       {name:'TERRA',period:98.8,inc:98.2,raan:120,alt:705},
+       {name:'AQUA',period:98.8,inc:98.2,raan:130,alt:705},
+       {name:'GOES-16',period:1436,inc:0.1,raan:180,alt:35786},
+       {name:'LANDSAT-8',period:99,inc:98.2,raan:90,alt:705},
+       {name:'SENTINEL-2A',period:100,inc:98.6,raan:150,alt:786},
+       {name:'STARLINK-1007',period:91,inc:53,raan:30,alt:550},
+       {name:'STARLINK-1130',period:91,inc:53,raan:50,alt:550},
+       {name:'STARLINK-2271',period:91,inc:53,raan:70,alt:550},
+       {name:'STARLINK-3024',period:91,inc:53,raan:90,alt:550},
+       {name:'GPS IIR-1',period:718,inc:55,raan:200,alt:20200},
+       {name:'GPS IIF-1',period:718,inc:55,raan:260,alt:20200},
+       {name:'GLONASS-M 701',period:676,inc:64.8,raan:100,alt:19100},
+       {name:'CHINESE SPACE STATION',period:92,inc:41.5,raan:280,alt:389},
+       {name:'JAMES WEBB ST',period:1440*6.5,inc:28,raan:0,alt:1500000},
+       {name:'ENVISAT',period:101,inc:98.5,raan:10,alt:790},
+       {name:'JASON-3',period:112,inc:66,raan:320,alt:1336},
+      ].forEach((s,i)=>{
+        const ps=s.period*60;const ph=((now/ps)%1)*2*Math.PI;
+        const lat=Math.sin(ph)*s.inc;const lon=((s.raan+(now/ps*360))%360+360)%360-180;
+        sats.push({noradId:String(20000+i),name:s.name,lat,lon,alt:s.alt||400});
+      });
+      this.satData=sats;this.updateSatellites(sats);this.renderSatFeed(sats);
+      markDone('li-sat');
+    }catch(e){console.warn('Sats failed:',e.message);this.useFallbackSats();}
+  },
+
+  useFallbackSats(){
+    const names=['ISS','HUBBLE','NOAA-19','TERRA','AQUA','GOES-16','LANDSAT-8','STARLINK-1','STARLINK-2','STARLINK-3'];
+    const now=Date.now()/1000;
+    const sats=names.map((name,i)=>{
+      const p=90*60+i*300;const inc=30+i*7;const ph=(now/p+i*0.3)*2*Math.PI;
+      return{noradId:String(25000+i),name,lat:Math.sin(ph)*inc,lon:((now/p*360+i*30)%360+360)%360-180,alt:400+i*30};
+    });
+    this.satData=sats;this.updateSatellites(sats);this.renderSatFeed(sats);
+  },
+
+  // ── FIRES (NASA FIRMS via CORS proxy) ──
+  async fetchFires(){
+    setLoad(80,'FETCHING WILDFIRE DATA...');
+    try{
+      // Use FIRMS via AllOrigins proxy
+      const url='https://firms.modaps.eosdis.nasa.gov/api/country/csv/c5f5b74cd7d977c3b1ab3beaeaf4e5ec/VIIRS_SNPP_NRT/world/1';
+      const proxyUrl=`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+      const res=await fetch(proxyUrl);
+      const text=await res.text();
+      const lines=text.trim().split('\n').slice(1);
+      const fires=lines.slice(0,500).map(line=>{
+        const parts=line.split(',');
+        if(parts.length<5)return null;
+        return{lat:parseFloat(parts[0]),lon:parseFloat(parts[1]),brightness:parseFloat(parts[2]||0),frp:parseFloat(parts[9]||0),name:'Hotspot '+parts[0]+'°'};
+      }).filter(f=>f&&isFinite(f.lat)&&isFinite(f.lon));
+      this.fireData=fires;
+      this.updateFires(fires);
+      markDone('li-fires');
+    }catch(e){
+      console.warn('Fires failed, using demo data:',e.message);
+      this.useDemoFires();
+    }
+  },
+
+  useDemoFires(){
+    // Known fire-prone regions
+    const demoFires=[
+      {lat:38.5,lon:-121.0,brightness:380,frp:45,name:'California Hotspot'},
+      {lat:37.8,lon:-119.5,brightness:340,frp:30,name:'Sierra Nevada Fire'},
+      {lat:-15.0,lon:-55.0,brightness:400,frp:80,name:'Amazon Hotspot'},
+      {lat:-12.0,lon:-50.0,brightness:380,frp:60,name:'Cerrado Fire'},
+      {lat:60.0,lon:100.0,brightness:360,frp:40,name:'Siberia Hotspot'},
+      {lat:62.0,lon:130.0,brightness:350,frp:35,name:'Yakutia Fire'},
+      {lat:-30.0,lon:150.0,brightness:390,frp:55,name:'NSW Hotspot'},
+      {lat:5.0,lon:20.0,brightness:370,frp:45,name:'Congo Basin Fire'},
+      {lat:15.0,lon:-14.0,brightness:365,frp:42,name:'West Africa Hotspot'},
+      {lat:55.0,lon:80.0,brightness:345,frp:28,name:'Western Siberia'},
+      {lat:40.0,lon:-3.0,brightness:340,frp:25,name:'Iberian Hotspot'},
+      {lat:37.0,lon:23.0,brightness:355,frp:38,name:'Greece Fire'},
+    ];
+    this.fireData=demoFires;
+    this.updateFires(demoFires);
+    markDone('li-fires');
+  },
+
+  // ── VOLCANOES ──
+  loadVolcanoes(){
+    const ds=this.ds.volcanoes;ds.entities.removeAll();
+    VOLCANOES.forEach(v=>{
+      ds.entities.add({
+        _name:v.name+' ('+v.status+')',
+        position:Cesium.Cartesian3.fromDegrees(v.lon,v.lat,v.elevation*10),
+        billboard:{image:mkVolcano(),width:22,height:22},
+        label:{text:v.name,font:'8px Share Tech Mono,monospace',fillColor:Cesium.Color.fromCssColorString('#ff8800'),outlineColor:Cesium.Color.BLACK,outlineWidth:2,style:Cesium.LabelStyle.FILL_AND_OUTLINE,pixelOffset:new Cesium.Cartesian2(0,-18),distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0,5000000)},
+        properties:v
+      });
+    });
+    $('stat-volcanoes').textContent=VOLCANOES.length;
+    markDone('li-vol');
+    this.renderVolFeed(VOLCANOES);
+  },
+
+  // ── SHIPS ──
+  loadShips(){
+    const ships=generateShips();this.shipData=ships;
+    const ds=this.ds.ships;ds.entities.removeAll();
+    ships.forEach(s=>{
+      ds.entities.add({
+        _name:s.name+' ('+s.type+')',
+        position:Cesium.Cartesian3.fromDegrees(s.lon,s.lat,100),
+        billboard:{image:mkShip(),width:18,height:18},
+        label:{text:s.name,font:'8px Share Tech Mono,monospace',fillColor:Cesium.Color.fromCssColorString('#ffcc00'),outlineColor:Cesium.Color.BLACK,outlineWidth:2,style:Cesium.LabelStyle.FILL_AND_OUTLINE,pixelOffset:new Cesium.Cartesian2(0,-16),distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0,2000000)},
+        properties:s
+      });
+    });
+    $('stat-ships').textContent=ships.length;
+  },
+
+  // ── UPDATE RENDERERS ──
+  updateFlights(flights){
+    const ds=this.ds.flights;ds.entities.removeAll();
+    flights.forEach(f=>{
+      if(!f.longitude||!f.latitude)return;
+      ds.entities.add({
+        _name:f.callsign||f.icao24,
+        position:Cesium.Cartesian3.fromDegrees(f.longitude,f.latitude,(f.altitude||0)+100),
+        billboard:{image:mkPlane(f.heading||0),width:18,height:18,color:Cesium.Color.fromCssColorString('#00d4aa')},
+        label:{text:f.callsign||f.icao24,font:'9px Share Tech Mono,monospace',fillColor:Cesium.Color.fromCssColorString('#00d4aa'),outlineColor:Cesium.Color.BLACK,outlineWidth:2,style:Cesium.LabelStyle.FILL_AND_OUTLINE,pixelOffset:new Cesium.Cartesian2(0,-16),distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0,500000)},
+        properties:f
+      });
+    });
+    $('stat-flights').textContent=flights.length.toLocaleString();
+    this.checkDone();
+  },
+
+  updateSatellites(sats){
+    const ds=this.ds.satellites;ds.entities.removeAll();
+    sats.forEach(s=>{
+      const lon=s.lon!==undefined?s.lon:s.longitude;
+      const lat=s.lat!==undefined?s.lat:s.latitude;
+      if(!isFinite(lon)||!isFinite(lat))return;
+      ds.entities.add({
+        _name:s.name,
+        position:Cesium.Cartesian3.fromDegrees(lon,lat,(s.alt||400)*1000),
+        billboard:{image:mkSat(),width:20,height:20},
+        label:{text:s.name,font:'8px Share Tech Mono,monospace',fillColor:Cesium.Color.fromCssColorString('#00aaff'),outlineColor:Cesium.Color.BLACK,outlineWidth:2,style:Cesium.LabelStyle.FILL_AND_OUTLINE,pixelOffset:new Cesium.Cartesian2(13,0),distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0,12000000)},
+        properties:s
+      });
+    });
+    $('stat-satellites').textContent=sats.length;
+  },
+
+  updateEarthquakes(quakes){
+    const ds=this.ds.earthquakes;ds.entities.removeAll();
+    quakes.forEach(eq=>{
+      if(!eq.longitude||!eq.latitude)return;
+      const size=Math.max(60000,(eq.magnitude||2)*90000);
+      const color=eq.magnitude>=6?'#ff0000':eq.magnitude>=5?'#ff6600':'#ff4444';
+      ds.entities.add({
+        _name:'M'+(eq.magnitude||0).toFixed(1)+' — '+(eq.place||''),
+        position:Cesium.Cartesian3.fromDegrees(eq.longitude,eq.latitude,1000),
+        ellipse:{semiMinorAxis:size,semiMajorAxis:size,material:Cesium.Color.fromCssColorString(color).withAlpha(0.25),outline:false,height:0},
+        point:{pixelSize:5,color:Cesium.Color.fromCssColorString(color),outlineColor:Cesium.Color.WHITE,outlineWidth:1},
+        label:{text:`M${(eq.magnitude||0).toFixed(1)}`,font:'9px Share Tech Mono,monospace',fillColor:Cesium.Color.fromCssColorString(color),outlineColor:Cesium.Color.BLACK,outlineWidth:2,style:Cesium.LabelStyle.FILL_AND_OUTLINE,pixelOffset:new Cesium.Cartesian2(0,-15),distanceDisplayCondition:new Cesium.DistanceDisplayCondition(0,4000000)},
+        properties:eq
+      });
+    });
+    $('stat-earthquakes').textContent=quakes.length;
+    this.checkDone();
+  },
+
+  updateFires(fires){
+    const ds=this.ds.fires;ds.entities.removeAll();
+    fires.forEach((f,i)=>{
+      if(!isFinite(f.lat)||!isFinite(f.lon))return;
+      const intensity=Math.min(1,(f.frp||20)/200);
+      const size=Math.max(20000,intensity*150000);
+      ds.entities.add({
+        _name:f.name||'Wildfire Hotspot',
+        position:Cesium.Cartesian3.fromDegrees(f.lon,f.lat,500),
+        billboard:{image:mkFire(),width:16,height:16},
+        ellipse:{semiMinorAxis:size,semiMajorAxis:size,material:Cesium.Color.fromCssColorString('#ff3300').withAlpha(0.2),outline:false,height:0},
+        properties:f
+      });
+    });
+    $('stat-fires').textContent=fires.length;
+    this.renderFireFeed(fires);
+  },
+
+  // ── TRAILS ──
+  drawTrails(){
+    const ds=this.ds.trails;ds.entities.removeAll();
+    Object.entries(flightTrails).forEach(([icao,pts])=>{
+      if(pts.length<2)return;
+      const positions=pts.map(p=>Cesium.Cartesian3.fromDegrees(p[0],p[1],(p[2]||0)+100));
+      ds.entities.add({
+        polyline:{positions,width:1,material:new Cesium.ColorMaterialProperty(Cesium.Color.fromCssColorString('#cc44ff').withAlpha(0.5)),arcType:Cesium.ArcType.GEODESIC}
+      });
+    });
+  },
+  clearTrails(){const ds=this.ds.trails;if(ds)ds.entities.removeAll();},
+
+  checkDone(){$('loading').classList.add('hidden');},
+
+  // ── FEEDS ──
+  renderEqFeed(quakes){
+    $('eq-feed').innerHTML=quakes.slice(0,25).map(q=>{
+      const mag=(q.magnitude||0).toFixed(1);
+      const ago=Math.round((Date.now()-q.time)/60000);
+      return`<div class="feed-item" onclick="flyTo(${q.latitude},${q.longitude},2000000)">
+        <div class="fi-title"><span class="fi-mag">M${mag}</span> ${(q.place||'').substring(0,32)}</div>
+        <div class="fi-sub">${ago<60?ago+'m':Math.round(ago/60)+'h'} ago · ${(q.depth||0).toFixed(0)}km deep</div>
+      </div>`;
+    }).join('');
+  },
+  renderSatFeed(sats){
+    $('sat-feed').innerHTML=sats.slice(0,15).map(s=>{
+      const lat=(s.lat!==undefined?s.lat:s.latitude||0).toFixed(1);
+      const lon=(s.lon!==undefined?s.lon:s.longitude||0).toFixed(1);
+      return`<div class="feed-item" onclick="T.flyToSat('${s.noradId}')">
+        <div class="fi-title fi-sat">🛰 ${s.name}</div>
+        <div class="fi-sub">${lat}° ${lon}° · ${s.alt||400}km</div>
+      </div>`;
+    }).join('');
+  },
+  renderFireFeed(fires){
+    $('fire-feed').innerHTML=fires.slice(0,15).map(f=>
+      `<div class="feed-item" onclick="flyTo(${f.lat},${f.lon},800000)">
+        <div class="fi-title fi-fire">🔥 ${(f.name||'Hotspot').substring(0,30)}</div>
+        <div class="fi-sub">FRP: ${(f.frp||0).toFixed(0)} MW · ${f.brightness||0}K</div>
+      </div>`
+    ).join('');
+  },
+  renderVolFeed(vols){
+    $('vol-feed').innerHTML=vols.map(v=>
+      `<div class="feed-item" onclick="flyTo(${v.lat},${v.lon},800000)">
+        <div class="fi-title fi-vol">🌋 ${v.name}</div>
+        <div class="fi-sub">${v.status} · ${v.elevation}m · ${v.country}</div>
+      </div>`
+    ).join('');
+  },
+
+  flyToSat(id){
+    const s=this.satData.find(x=>x.noradId===id);if(!s)return;
+    flyTo(s.lat!==undefined?s.lat:s.latitude,s.lon!==undefined?s.lon:s.longitude,3000000);
+  },
+
+  setLayerVisibility(l,v){if(this.ds[l])this.ds[l].show=v;},
+
+  setVisualMode(mode){
+    this.currentMode=mode;
+    this.viewer.scene.postProcessStages.removeAll();
+    const sh={
+      crt:`uniform sampler2D colorTexture;in vec2 v_textureCoordinates;void main(){vec2 uv=v_textureCoordinates;vec4 c=texture(colorTexture,uv);float sl=sin(uv.y*800.0)*0.04;c.rgb-=sl;c.r*=0.85;c.b*=0.85;c.g*=1.1;float v=1.0-length((uv-0.5)*1.3);c.rgb*=v;out_FragColor=c;}`,
+      nvg:`uniform sampler2D colorTexture;in vec2 v_textureCoordinates;void main(){vec4 c=texture(colorTexture,v_textureCoordinates);float l=dot(c.rgb,vec3(0.299,0.587,0.114));vec3 n=vec3(0,l*1.3,l*0.1);float ns=fract(sin(dot(v_textureCoordinates*1000.0,vec2(12.9898,78.233)))*43758.5453);n+=ns*0.05;n=pow(n,vec3(0.85));float v=1.0-length((v_textureCoordinates-0.5)*0.8);n*=v;out_FragColor=vec4(n,1);}`,
+      flir:`uniform sampler2D colorTexture;in vec2 v_textureCoordinates;void main(){vec4 c=texture(colorTexture,v_textureCoordinates);float l=dot(c.rgb,vec3(0.299,0.587,0.114));vec3 t;if(l<0.25)t=mix(vec3(0,0,0.1),vec3(0.3,0,0.4),l*4.0);else if(l<0.5)t=mix(vec3(0.3,0,0.4),vec3(0.8,0.2,0),(l-0.25)*4.0);else if(l<0.75)t=mix(vec3(0.8,0.2,0),vec3(1,0.9,0),(l-0.5)*4.0);else t=mix(vec3(1,0.9,0),vec3(1,1,1),(l-0.75)*4.0);out_FragColor=vec4(t,1);}`,
+      noir:`uniform sampler2D colorTexture;in vec2 v_textureCoordinates;void main(){vec4 c=texture(colorTexture,v_textureCoordinates);float l=dot(c.rgb,vec3(0.299,0.587,0.114));l=pow(l,0.7);l=smoothstep(0.1,0.9,l);vec3 n=vec3(l,l*0.95,l*0.9);float v=1.0-length((v_textureCoordinates-0.5)*1.2);n*=v;out_FragColor=vec4(n,1);}`,
+      snow:`uniform sampler2D colorTexture;in vec2 v_textureCoordinates;void main(){vec4 c=texture(colorTexture,v_textureCoordinates);float l=dot(c.rgb,vec3(0.299,0.587,0.114));c.rgb=mix(c.rgb,vec3(l),0.7);c.r*=0.85;c.g*=0.92;c.b*=1.15;c.rgb=pow(c.rgb,vec3(0.9));float n=fract(sin(dot(v_textureCoordinates*500.0,vec2(12.9898,78.233)))*43758.5453);c.rgb+=n*0.02;out_FragColor=c;}`
+    };
+    if(sh[mode])this.viewer.scene.postProcessStages.add(new Cesium.PostProcessStage({fragmentShader:sh[mode]}));
+  }
+};
+
+function waitForCesium(){
+  if(typeof Cesium!=='undefined'){setLoad(5,'BOOTING TERRA5 ULTIMATE...');setTimeout(()=>T.init(),200);}
+  else setTimeout(waitForCesium,100);
+}
+window.addEventListener('load',waitForCesium);
+</script>
 </body>
 </html>
